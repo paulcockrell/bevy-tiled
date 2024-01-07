@@ -131,13 +131,15 @@ fn setup(
                 tiled::TileLayer::Finite(data) => match (layer.width(), layer.height()) {
                     (Some(w), Some(h)) => {
                         println!("Layer width {} height {}", w, h);
-                        for x in 0..w {
-                            for y in 0..h {
+                        for y in 0..h {
+                            for x in 0..w {
                                 if let Some(tile) = data.get_tile(x as i32, y as i32) {
                                     println!(
-                                            "Finite tile layer with width = {} and height = {}; ID of tile @ (0,0): {:?}",
+                                            "Finite tile layer with width = {} and height = {}; ID of tile @ ({},{}): {:?}",
                                             data.width(),
                                             data.height(),
+                                            x,
+                                            y,
                                             tile.id(),
                                         );
                                     tiles.push((
@@ -147,8 +149,6 @@ fn setup(
                                             ..Default::default()
                                         }),
                                     ));
-                                } else {
-                                    println!("Did not find tile at {},{}", x, y);
                                 };
                             }
                         }
