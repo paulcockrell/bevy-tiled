@@ -32,7 +32,7 @@ fn input_system(
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
 ) {
-    const MOVE_SPEED: f32 = 1000.0;
+    const MOVE_SPEED: f32 = 100.0;
     const ZOOM_SPEED: f32 = 10.0;
 
     if let Some(mut tf) = camera_transform_query.iter_mut().next() {
@@ -83,7 +83,7 @@ fn setup(
         vec2(16.0, 16.0),
         12,
         11,
-        Some(vec2(1.0, 1.0)),
+        Some(vec2(0.0, 0.0)),
         None,
     );
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
@@ -125,36 +125,59 @@ fn setup(
     let map = loader.load_tmx_map("assets/map.tmx").unwrap();
 
     for layer in map.layers() {
-        print!("Layer \"{}\"\n\t", layer.name);
+        print!(
+            "Layer \"{}\"\n\t {} {}",
+            layer.name, layer.offset_x, layer.offset_y
+        );
         match layer.layer_type() {
             tiled::LayerType::Tiles(layer) => match layer {
-                tiled::TileLayer::Finite(data) => match (layer.width(), layer.height()) {
-                    (Some(w), Some(h)) => {
-                        println!("Layer width {} height {}", w, h);
-                        for y in 0..h {
-                            for x in 0..w {
-                                if let Some(tile) = data.get_tile(x as i32, y as i32) {
-                                    println!(
-                                            "Finite tile layer with width = {} and height = {}; ID of tile @ ({},{}): {:?}",
-                                            data.width(),
-                                            data.height(),
-                                            x,
-                                            y,
-                                            tile.id(),
-                                        );
-                                    tiles.push((
-                                        ivec3(x as i32, y as i32, 0),
-                                        Some(Tile {
-                                            sprite_index: tile.id(),
-                                            ..Default::default()
-                                        }),
-                                    ));
-                                };
-                            }
+                tiled::TileLayer::Finite(data) => {
+                    println!("Layer width {} height {}", map.width, map.height);
+                    for x in 0..map.width {
+                        for y in 0..map.height {
+                            // Transform TMX coords into bevy coords.
+                            let mapped_y = map.height - 1 - y;
+
+                            let mapped_x = x as i32;
+                            let mapped_y = mapped_y as i32;
+
+                            let layer_tile = match data.get_tile(mapped_x, mapped_y) {
+                                Some(t) => t,
+                                None => {
+                                    continue;
+                                }
+                            };
+                            tiles.push((
+                                ivec3(x as i32, y as i32, 0),
+                                Some(Tile {
+                                    sprite_index: layer_tile.id(),
+                                    ..Default::default()
+                                }),
+                            ));
                         }
                     }
-                    _ => println!("Failed to load layer dimensions"),
-                },
+                    // for y in 0..h {
+                    //     for x in 0..w {
+                    //         if let Some(tile) = data.get_tile(x as i32, y as i32) {
+                    //             println!(
+                    //                         "Finite tile layer with width = {} and height = {}; ID of tile @ ({},{}): {:?}",
+                    //                         data.width(),
+                    //                         data.height(),
+                    //                         x,
+                    //                         y,
+                    //                         tile.id(),
+                    //                     );
+                    //             tiles.push((
+                    //                 ivec3(x as i32, y as i32, 0),
+                    //                 Some(Tile {
+                    //                     sprite_index: tile.id(),
+                    //                     ..Default::default()
+                    //                 }),
+                    //             ));
+                    //         };
+                    //     }
+                    // }
+                }
                 _ => println!("Not finite layer, not supported"),
             },
             tiled::LayerType::Objects(layer) => {
