@@ -89,7 +89,7 @@ fn setup(
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
     // store tiles prepared for rendering
-    let tiles: Vec<(IVec3, Option<Tile>)> = vec![];
+    let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
     // let tiles = vec![
     //     (
     //         ivec3(-1, 0, 0),
@@ -128,32 +128,33 @@ fn setup(
         print!("Layer \"{}\"\n\t", layer.name);
         match layer.layer_type() {
             tiled::LayerType::Tiles(layer) => match layer {
-                tiled::TileLayer::Finite(data) => {
-                    let x = 0;
-                    let y = 0;
-                    match (layer.width(), layer.height()) {
-                        (Some(w), Some(h)) => {
-                            println!("Layer width {} height {}", w, h);
+                tiled::TileLayer::Finite(data) => match (layer.width(), layer.height()) {
+                    (Some(w), Some(h)) => {
+                        println!("Layer width {} height {}", w, h);
+                        for x in 0..w {
+                            for y in 0..h {
+                                if let Some(tile) = data.get_tile(x as i32, y as i32) {
+                                    println!(
+                                            "Finite tile layer with width = {} and height = {}; ID of tile @ (0,0): {:?}",
+                                            data.width(),
+                                            data.height(),
+                                            tile.id(),
+                                        );
+                                    tiles.push((
+                                        ivec3(x as i32, y as i32, 0),
+                                        Some(Tile {
+                                            sprite_index: tile.id(),
+                                            ..Default::default()
+                                        }),
+                                    ));
+                                } else {
+                                    println!("Did not find tile at {},{}", x, y);
+                                };
+                            }
                         }
-                        _ => println!("Failed to load layer dimensions"),
                     }
-
-                    //         ivec3(0, 1, 0),
-                    //         Some(Tile {
-                    //             sprite_index: 3,
-                    //             ..Default::default()
-                    //         }),
-                    if let Some(tile) = data.get_tile(x, y) {
-                        println!(
-                            "Finite tile layer with width = {} and height = {}; ID of tile @ (0,0): {:?}",
-                            data.width(),
-                            data.height(),
-                            tile.id(),
-                        );
-                    } else {
-                        println!("Did not find tile at {},{}", x, y);
-                    };
-                }
+                    _ => println!("Failed to load layer dimensions"),
+                },
                 _ => println!("Not finite layer, not supported"),
             },
             tiled::LayerType::Objects(layer) => {
