@@ -95,8 +95,27 @@ fn setup(
     for layer in map.layers() {
         print!("Layer \"{}\"\n\t", layer.name);
         match layer.layer_type() {
-            tiled::LayerType::Tiles(_) => println!("WOOP"),
-            _ => println!("HEHEHE"),
+            tiled::LayerType::Tiles(layer) => match layer {
+                tiled::TileLayer::Finite(data) => {
+                    let x = 0;
+                    let y = 0;
+                    if let Some(tile) = data.get_tile(x, y) {
+                        println!(
+                            "Finite tile layer with width = {} and height = {}; ID of tile @ (0,0): {:?}",
+                            data.width(),
+                            data.height(),
+                            tile.id(),
+                        );
+                    } else {
+                        println!("Did not find tile at {},{}", x, y);
+                    };
+                }
+                _ => println!("Not finite layer, not supported"),
+            },
+            tiled::LayerType::Objects(layer) => {
+                println!("Object layer with {} objects", layer.objects().len())
+            }
+            _ => println!("Other layer type, no supported"),
         }
         //     tiled::LayerType::Tiles(layer) => match layer {
         //         tiled::TileLayer::Finite(data) => println!(
