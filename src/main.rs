@@ -4,6 +4,7 @@ use bevy::{
     window::WindowResolution,
 };
 use bevy_simple_tilemap::prelude::*;
+use tiled::Loader;
 
 fn main() {
     App::new()
@@ -65,6 +66,10 @@ fn input_system(
         }
     }
 }
+#[derive(TypePath, Asset)]
+pub struct TiledMap {
+    pub map: tiled::Map,
+}
 
 fn setup(
     asset_server: Res<AssetServer>,
@@ -82,6 +87,46 @@ fn setup(
         None,
     );
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    // rs-tiled START
+    let mut loader = Loader::new();
+    let map = loader.load_tmx_map("assets/map.tmx").unwrap();
+    for layer in map.layers() {
+        print!("Layer \"{}\":\n\t", layer.name);
+        // match layer.layer_type() {
+        //     tiled::LayerType::Tiles(layer) => match layer {
+        //         tiled::TileLayer::Finite(data) => println!(
+        //             "Finite tile layer with width = {} and height = {}; ID of tile @ (0,0): {}",
+        //             data.width(),
+        //             data.height(),
+        //             data.get_tile(0, 0).unwrap().id()
+        //         ),
+        //         tiled::TileLayer::Infinite(data) => {
+        //             println!(
+        //                 "Infinite tile layer; Tile @ (-5, 0) = {:?}",
+        //                 data.get_tile(-5, 0)
+        //             )
+        //         }
+        //     },
+        //     tiled::LayerType::Objects(layer) => {
+        //         println!("Object layer with {} objects", layer.objects().len())
+        //     }
+        //     tiled::LayerType::Image(layer) => {
+        //         println!(
+        //             "Image layer with {}",
+        //             match &layer.image {
+        //                 Some(img) =>
+        //                     format!("an image with source = {}", img.source.to_string_lossy()),
+        //                 None => "no image".to_owned(),
+        //             }
+        //         )
+        //     }
+        //     tiled::LayerType::Group(layer) => {
+        //         println!("Group layer with {} sublayers", layer.layers().len())
+        //     }
+        // }
+    }
+    // rs-tiled END
 
     let tiles = vec![
         (
