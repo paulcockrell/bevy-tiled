@@ -88,6 +88,38 @@ fn setup(
     );
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
+    // store tiles prepared for rendering
+    let tiles: Vec<(IVec3, Option<Tile>)> = vec![];
+    // let tiles = vec![
+    //     (
+    //         ivec3(-1, 0, 0),
+    //         Some(Tile {
+    //             sprite_index: 0,
+    //             ..Default::default()
+    //         }),
+    //     ),
+    //     (
+    //         ivec3(1, 0, 0),
+    //         Some(Tile {
+    //             sprite_index: 1,
+    //             ..Default::default()
+    //         }),
+    //     ),
+    //     (
+    //         ivec3(0, -1, 0),
+    //         Some(Tile {
+    //             sprite_index: 2,
+    //             ..Default::default()
+    //         }),
+    //     ),
+    //     (
+    //         ivec3(0, 1, 0),
+    //         Some(Tile {
+    //             sprite_index: 3,
+    //             ..Default::default()
+    //         }),
+    //     ),
+    // ];
     // rs-tiled START
     let mut loader = Loader::new();
     let map = loader.load_tmx_map("assets/map.tmx").unwrap();
@@ -99,6 +131,18 @@ fn setup(
                 tiled::TileLayer::Finite(data) => {
                     let x = 0;
                     let y = 0;
+                    match (layer.width(), layer.height()) {
+                        (Some(w), Some(h)) => {
+                            println!("Layer width {} height {}", w, h);
+                        }
+                        _ => println!("Failed to load layer dimensions"),
+                    }
+
+                    //         ivec3(0, 1, 0),
+                    //         Some(Tile {
+                    //             sprite_index: 3,
+                    //             ..Default::default()
+                    //         }),
                     if let Some(tile) = data.get_tile(x, y) {
                         println!(
                             "Finite tile layer with width = {} and height = {}; ID of tile @ (0,0): {:?}",
@@ -150,37 +194,6 @@ fn setup(
         // }
     }
     // rs-tiled END
-
-    let tiles = vec![
-        (
-            ivec3(-1, 0, 0),
-            Some(Tile {
-                sprite_index: 0,
-                ..Default::default()
-            }),
-        ),
-        (
-            ivec3(1, 0, 0),
-            Some(Tile {
-                sprite_index: 1,
-                ..Default::default()
-            }),
-        ),
-        (
-            ivec3(0, -1, 0),
-            Some(Tile {
-                sprite_index: 2,
-                ..Default::default()
-            }),
-        ),
-        (
-            ivec3(0, 1, 0),
-            Some(Tile {
-                sprite_index: 3,
-                ..Default::default()
-            }),
-        ),
-    ];
 
     let mut tilemap = TileMap::default();
     tilemap.set_tiles(tiles);
