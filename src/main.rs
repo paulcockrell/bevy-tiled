@@ -4,6 +4,7 @@ use bevy::{
     window::WindowResolution,
 };
 use bevy_simple_tilemap::prelude::*;
+use bevy_simple_tilemap::TileFlags;
 use tiled::Loader;
 
 fn main() {
@@ -87,47 +88,23 @@ fn setup(
         None,
     );
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
-
-    // store tiles prepared for rendering
     let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
-    // let tiles = vec![
-    //     (
-    //         ivec3(-1, 0, 0),
-    //         Some(Tile {
-    //             sprite_index: 0,
-    //             ..Default::default()
-    //         }),
-    //     ),
-    //     (
-    //         ivec3(1, 0, 0),
-    //         Some(Tile {
-    //             sprite_index: 1,
-    //             ..Default::default()
-    //         }),
-    //     ),
-    //     (
-    //         ivec3(0, -1, 0),
-    //         Some(Tile {
-    //             sprite_index: 2,
-    //             ..Default::default()
-    //         }),
-    //     ),
-    //     (
-    //         ivec3(0, 1, 0),
-    //         Some(Tile {
-    //             sprite_index: 3,
-    //             ..Default::default()
-    //         }),
-    //     ),
-    // ];
-    // rs-tiled START
     let mut loader = Loader::new();
     let map = loader.load_tmx_map("assets/map.tmx").unwrap();
 
-    for layer in map.layers() {
+    // let tile_layers = map.layers().filter_map(|layer| match layer.layer_type() {
+    //     tile::LayerType::Tiles(layer) => Some(layer),
+    //     _ => None,
+    // });
+
+    // for layer in tile_layers {
+    //     layer_renderer(layer);
+    // }
+
+    for (i, layer) in map.layers().enumerate() {
         print!(
-            "Layer \"{}\"\n\t {} {}",
-            layer.name, layer.offset_x, layer.offset_y
+            "Layer [{}] \"{}\"\n\t {} {}",
+            i, layer.name, layer.offset_x, layer.offset_y
         );
         match layer.layer_type() {
             tiled::LayerType::Tiles(layer) => match layer {
@@ -136,9 +113,8 @@ fn setup(
                     for x in 0..map.width {
                         for y in 0..map.height {
                             // Transform TMX coords into bevy coords.
-                            let mapped_y = map.height - 1 - y;
-
                             let mapped_x = x as i32;
+                            let mapped_y = map.height - 1 - y;
                             let mapped_y = mapped_y as i32;
 
                             let layer_tile = match data.get_tile(mapped_x, mapped_y) {
@@ -147,36 +123,35 @@ fn setup(
                                     continue;
                                 }
                             };
+
+                            let layer_tile_data = match data.get_tile_data(mapped_x, mapped_y) {
+                                Some(d) => d,
+                                None => {
+                                    continue;
+                                }
+                            };
+
+                            let flags = if layer_tile_data.flip_v && layer_tile_data.flip_d {
+                                TileFlags::FLIP_X | TileFlags::FLIP_Y
+                            } else if layer_tile_data.flip_v {
+                                TileFlags::FLIP_Y
+                            } else if layer_tile_data.flip_d {
+                                TileFlags::FLIP_X
+                            } else {
+                                TileFlags::default()
+                            };
+
                             tiles.push((
-                                ivec3(x as i32, y as i32, 0),
+                                ivec3(x as i32, y as i32, i as i32), // i is used to set the Z of the
+                                // tile, this effectively states which 'layer' the tile is on.
                                 Some(Tile {
                                     sprite_index: layer_tile.id(),
+                                    flags,
                                     ..Default::default()
                                 }),
                             ));
                         }
                     }
-                    // for y in 0..h {
-                    //     for x in 0..w {
-                    //         if let Some(tile) = data.get_tile(x as i32, y as i32) {
-                    //             println!(
-                    //                         "Finite tile layer with width = {} and height = {}; ID of tile @ ({},{}): {:?}",
-                    //                         data.width(),
-                    //                         data.height(),
-                    //                         x,
-                    //                         y,
-                    //                         tile.id(),
-                    //                     );
-                    //             tiles.push((
-                    //                 ivec3(x as i32, y as i32, 0),
-                    //                 Some(Tile {
-                    //                     sprite_index: tile.id(),
-                    //                     ..Default::default()
-                    //                 }),
-                    //             ));
-                    //         };
-                    //     }
-                    // }
                 }
                 _ => println!("Not finite layer, not supported"),
             },
@@ -185,39 +160,7 @@ fn setup(
             }
             _ => println!("Other layer type, no supported"),
         }
-        //     tiled::LayerType::Tiles(layer) => match layer {
-        //         tiled::TileLayer::Finite(data) => println!(
-        //             "Finite tile layer with width = {} and height = {}; ID of tile @ (0,0): {}",
-        //             data.width(),
-        //             data.height(),
-        //             data.get_tile(0, 0).unwrap().id()
-        //         ),
-        //         tiled::TileLayer::Infinite(data) => {
-        //             println!(
-        //                 "Infinite tile layer; Tile @ (-5, 0) = {:?}",
-        //                 data.get_tile(-5, 0)
-        //             )
-        //         }
-        //     },
-        //     tiled::LayerType::Objects(layer) => {
-        //         println!("Object layer with {} objects", layer.objects().len())
-        //     }
-        //     tiled::LayerType::Image(layer) => {
-        //         println!(
-        //             "Image layer with {}",
-        //             match &layer.image {
-        //                 Some(img) =>
-        //                     format!("an image with source = {}", img.source.to_string_lossy()),
-        //                 None => "no image".to_owned(),
-        //             }
-        //         )
-        //     }
-        //     tiled::LayerType::Group(layer) => {
-        //         println!("Group layer with {} sublayers", layer.layers().len())
-        //     }
-        // }
     }
-    // rs-tiled END
 
     let mut tilemap = TileMap::default();
     tilemap.set_tiles(tiles);
