@@ -24,6 +24,11 @@ pub struct TilemapTileSize {
     pub y: f32,
 }
 
+pub struct TilemapSpacing {
+    pub x: f32,
+    pub y: f32,
+}
+
 #[derive(Default)]
 pub struct TiledMapPlugin;
 
@@ -200,10 +205,10 @@ pub fn process_loaded_maps(
                         y: tileset.tile_height as f32,
                     };
 
-                    // let tile_spacing = TilemapSpacing {
-                    //     x: tileset.spacing as f32,
-                    //     y: tileset.spacing as f32,
-                    // };
+                    let tile_spacing = TilemapSpacing {
+                        x: tileset.spacing as f32,
+                        y: tileset.spacing as f32,
+                    };
 
                     // Once materials have been created/added we need to then create the layers.
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
@@ -315,7 +320,7 @@ pub fn process_loaded_maps(
                             vec2(tile_size.x, tile_size.y),
                             12,
                             11,
-                            Some(vec2(0.0, 0.0)),
+                            Some(vec2(tile_spacing.x, tile_spacing.y)),
                             None,
                         );
                         let texture_atlas_handle = texture_atlases.add(texture_atlas);
