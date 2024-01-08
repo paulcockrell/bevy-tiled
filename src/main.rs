@@ -1,5 +1,6 @@
 use crate::tiled::TiledMapPlugin;
 use bevy::{prelude::*, window::WindowResolution};
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_simple_tilemap::prelude::*;
 
 mod tiled;
@@ -22,6 +23,7 @@ fn main() {
         .add_plugins(TiledMapPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, input_system)
+        .add_plugins(WorldInspectorPlugin::new())
         .run();
 }
 

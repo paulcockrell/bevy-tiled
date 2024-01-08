@@ -3,14 +3,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bevy::math::{ivec3, vec2};
-use bevy::prelude::{IVec3, ResMut, Update, Vec3};
+use bevy::prelude::{IVec3, Name, ResMut, Update, Vec3};
 use bevy::sprite::TextureAtlas;
 use bevy::{
     asset::{io::Reader, AssetLoader, AssetPath, AsyncReadExt},
     log,
     prelude::{
-        Added, Asset, AssetApp, AssetEvent, AssetId, Assets, Bundle, Commands, Component, Entity,
-        EventReader, GlobalTransform, Handle, Image, Plugin, Query, Res, Transform,
+        Added, Asset, AssetApp, AssetEvent, AssetId, Assets, Bundle, Commands, EventReader,
+        GlobalTransform, Handle, Image, Plugin, Query, Res, Transform,
     },
     reflect::TypePath,
     utils::{BoxedFuture, HashMap},
@@ -216,6 +216,8 @@ pub fn process_loaded_maps(
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
                         let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
 
+                        // TODO: Rather than make this a tiles only renderer, we should detect
+                        // layer type and call out to a renderer for that type
                         let tiled::LayerType::Tiles(tile_layer) = layer.layer_type() else {
                             log::info!(
                                 "Skipping layer {} because only tile layers are supported.",
@@ -269,8 +271,6 @@ pub fn process_loaded_maps(
                                     TileFlags::default()
                                 };
 
-                                let texture_index = layer_tile.id();
-
                                 tiles.push((
                                     ivec3(x as i32, y as i32, layer_index as i32),
                                     Some(Tile {
@@ -307,7 +307,8 @@ pub fn process_loaded_maps(
                             ..Default::default()
                         };
 
-                        commands.spawn(tilemap_bundle);
+                        let layer_name = layer.name.clone();
+                        commands.spawn(tilemap_bundle).insert(Name::new(layer_name));
                     }
                 }
             }
