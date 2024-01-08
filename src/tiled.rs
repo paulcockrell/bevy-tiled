@@ -16,8 +16,13 @@ use bevy::{
     utils::{BoxedFuture, HashMap},
 };
 
-use bevy_simple_tilemap::prelude::*;
+use bevy_simple_tilemap::{prelude::*, TileFlags};
 use thiserror::Error;
+
+pub struct TilemapSize {
+    pub columns: usize,
+    pub rows: usize,
+}
 
 pub struct TilemapTileSize {
     pub x: f32,
@@ -47,16 +52,9 @@ pub struct TiledMap {
     pub tile_image_offsets: HashMap<(usize, tiled::TileId), u32>,
 }
 
-// Stores a list of tiled layers.
-#[derive(Component, Default)]
-pub struct TiledLayersStorage {
-    pub storage: HashMap<u32, Entity>,
-}
-
 #[derive(Default, Bundle)]
 pub struct TiledMapBundle {
     pub tiled_map: Handle<TiledMap>,
-    pub storage: TiledLayersStorage,
     pub transform: Transform,
     pub global_transform: GlobalTransform,
 }
@@ -154,11 +152,10 @@ impl AssetLoader for TiledLoader {
 pub fn process_loaded_maps(
     mut commands: Commands,
     mut map_events: EventReader<AssetEvent<TiledMap>>,
-    maps: Res<Assets<TiledMap>>,
-    tile_storage_query: Query<(Entity, &TileMap)>,
-    mut map_query: Query<(&Handle<TiledMap>, &mut TiledLayersStorage)>,
-    new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
+    mut map_query: Query<&Handle<TiledMap>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    maps: Res<Assets<TiledMap>>,
+    new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
 ) {
     let mut changed_maps = Vec::<AssetId<TiledMap>>::default();
     for event in map_events.read() {
@@ -187,7 +184,7 @@ pub fn process_loaded_maps(
     }
 
     for changed_map in changed_maps.iter() {
-        for (map_handle, mut layer_storage) in map_query.iter_mut() {
+        for map_handle in map_query.iter_mut() {
             // only deal with currently changed map
             if map_handle.id() != *changed_map {
                 continue;
@@ -210,10 +207,13 @@ pub fn process_loaded_maps(
                         y: tileset.spacing as f32,
                     };
 
+                    let tilemap_size = TilemapSize {
+                        columns: tileset.columns as usize,
+                        rows: (tileset.tilecount / tileset.columns) as usize,
+                    };
+
                     // Once materials have been created/added we need to then create the layers.
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
-                        let offset_x = layer.offset_x;
-                        let offset_y = layer.offset_y;
                         let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
 
                         let tiled::LayerType::Tiles(tile_layer) = layer.layer_type() else {
@@ -231,32 +231,6 @@ pub fn process_loaded_maps(
                             );
                             continue;
                         };
-
-                        // let map_size = TilemapSize {
-                        //     x: tiled_map.map.width,
-                        //     y: tiled_map.map.height,
-                        // };
-
-                        // let grid_size = TilemapGridSize {
-                        //     x: tiled_map.map.tile_width as f32,
-                        //     y: tiled_map.map.tile_height as f32,
-                        // };
-
-                        // let map_type = match tiled_map.map.orientation {
-                        //     tiled::Orientation::Hexagonal => {
-                        //         TilemapType::Hexagon(HexCoordSystem::Row)
-                        //     }
-                        //     tiled::Orientation::Isometric => {
-                        //         TilemapType::Isometric(IsoCoordSystem::Diamond)
-                        //     }
-                        //     tiled::Orientation::Staggered => {
-                        //         TilemapType::Isometric(IsoCoordSystem::Staggered)
-                        //     }
-                        //     tiled::Orientation::Orthogonal => TilemapType::Square,
-                        // };
-
-                        // let mut tile_storage = TileStorage::empty(map_size);
-                        // let layer_entity = commands.spawn_empty().id();
 
                         for x in 0..tiled_map.map.width {
                             for y in 0..tiled_map.map.height {
@@ -285,44 +259,41 @@ pub fn process_loaded_maps(
                                         }
                                     };
 
+                                let flags = if layer_tile_data.flip_v && layer_tile_data.flip_d {
+                                    TileFlags::FLIP_X | TileFlags::FLIP_Y
+                                } else if layer_tile_data.flip_v {
+                                    TileFlags::FLIP_Y
+                                } else if layer_tile_data.flip_d {
+                                    TileFlags::FLIP_X
+                                } else {
+                                    TileFlags::default()
+                                };
+
                                 let texture_index = layer_tile.id();
 
                                 tiles.push((
                                     ivec3(x as i32, y as i32, layer_index as i32),
                                     Some(Tile {
                                         sprite_index: layer_tile.id(),
+                                        flags,
                                         ..Default::default()
                                     }),
                                 ));
-
-                                // let tile_pos = TilePos { x, y };
-                                // let tile_entity = commands
-                                //     .spawn(TileBundle {
-                                //         position: tile_pos,
-                                //         tilemap_id: TilemapId(layer_entity),
-                                //         texture_index: TileTextureIndex(texture_index),
-                                //         flip: TileFlip {
-                                //             x: layer_tile_data.flip_h,
-                                //             y: layer_tile_data.flip_v,
-                                //             d: layer_tile_data.flip_d,
-                                //         },
-                                //         ..Default::default()
-                                //     })
-                                //     .id();
-                                // tile_storage.set(&tile_pos, tile_entity);
                             }
                         }
 
                         let mut tilemap = TileMap::default();
                         tilemap.set_tiles(tiles);
+
                         let texture_atlas = TextureAtlas::from_grid(
                             tilemap_texture.clone(),
                             vec2(tile_size.x, tile_size.y),
-                            12,
-                            11,
+                            tilemap_size.columns,
+                            tilemap_size.rows,
                             Some(vec2(tile_spacing.x, tile_spacing.y)),
                             None,
                         );
+
                         let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
                         let tilemap_bundle = TileMapBundle {
@@ -337,26 +308,6 @@ pub fn process_loaded_maps(
                         };
 
                         commands.spawn(tilemap_bundle);
-                        // commands.entity(layer_entity).insert(TilemapBundle {
-                        //     grid_size,
-                        //     size: map_size,
-                        //     storage: tile_storage,
-                        //     texture: tilemap_texture.clone(),
-                        //     tile_size,
-                        //     spacing: tile_spacing,
-                        //     transform: get_tilemap_center_transform(
-                        //         &map_size,
-                        //         &grid_size,
-                        //         &map_type,
-                        //         layer_index as f32,
-                        //     ) * Transform::from_xyz(offset_x, -offset_y, 0.0),
-                        //     map_type,
-                        //     ..Default::default()
-                        // });
-
-                        // layer_storage
-                        //     .storage
-                        //     .insert(layer_index as u32, layer_entity);
                     }
                 }
             }
