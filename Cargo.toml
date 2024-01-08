@@ -9,6 +9,7 @@ edition = "2021"
 bevy = "0.12.1"
 bevy_simple_tilemap = "0.13.0"
 tiled = "0.11.2"
+thiserror = "1.0"
 
 [profile.dev]
 opt-level = 1

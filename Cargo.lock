@@ -3282,6 +3282,7 @@ dependencies = [
  "bevy",
  "bevy_simple_tilemap",
  "embed-resource",
+ "thiserror",
  "tiled",
 ]
 
