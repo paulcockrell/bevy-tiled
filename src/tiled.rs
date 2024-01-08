@@ -19,6 +19,11 @@ use bevy::{
 use bevy_simple_tilemap::prelude::*;
 use thiserror::Error;
 
+pub struct TilemapTileSize {
+    pub x: f32,
+    pub y: f32,
+}
+
 #[derive(Default)]
 pub struct TiledMapPlugin;
 
@@ -190,10 +195,10 @@ pub fn process_loaded_maps(
                         continue;
                     };
 
-                    // let tile_size = TilemapTileSize {
-                    //     x: tileset.tile_width as f32,
-                    //     y: tileset.tile_height as f32,
-                    // };
+                    let tile_size = TilemapTileSize {
+                        x: tileset.tile_width as f32,
+                        y: tileset.tile_height as f32,
+                    };
 
                     // let tile_spacing = TilemapSpacing {
                     //     x: tileset.spacing as f32,
@@ -262,9 +267,11 @@ pub fn process_loaded_maps(
                                         continue;
                                     }
                                 };
+
                                 if tileset_index != layer_tile.tileset_index() {
                                     continue;
                                 }
+
                                 let layer_tile_data =
                                     match layer_data.get_tile_data(mapped_x, mapped_y) {
                                         Some(d) => d,
@@ -305,7 +312,7 @@ pub fn process_loaded_maps(
                         tilemap.set_tiles(tiles);
                         let texture_atlas = TextureAtlas::from_grid(
                             tilemap_texture.clone(),
-                            vec2(16.0, 16.0),
+                            vec2(tile_size.x, tile_size.y),
                             12,
                             11,
                             Some(vec2(0.0, 0.0)),
