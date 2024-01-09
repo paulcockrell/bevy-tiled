@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::io::{Cursor, ErrorKind};
 use std::path::Path;
 use std::sync::Arc;
-use tiled::Layer;
 
 use bevy::math::{ivec3, vec2};
 use bevy::prelude::{Component, IVec3, Name, ResMut, Update, Vec3};
@@ -164,6 +163,8 @@ pub fn process_loaded_maps(
 ) {
     let mut changed_maps = Vec::<AssetId<TiledMap>>::default();
 
+    // TODO: Add in system to remove existing map
+
     for event in map_events.read() {
         match event {
             AssetEvent::Added { id } => {
@@ -295,6 +296,8 @@ fn build_tiles(
     layer_index: usize,
     tile_layer: TileLayer,
 ) -> Option<Vec<(IVec3, Option<Tile>)>> {
+    println!("Building tile tiles for layer {}", layer_index);
+
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
         log::info!(
             "Skipping layer {} because only finite layers are supported.",
@@ -359,21 +362,20 @@ fn build_objects(
     layer_index: usize,
     object_layer: ObjectLayer,
 ) -> Option<Vec<(IVec3, Option<Tile>)>> {
+    println!("Building object tiles for layer {}", layer_index);
+
     let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
 
     for object in object_layer.objects() {
-        let Some(tile) = object.get_tile() else {
-            println!("No tile found, skipping");
-            continue;
-        };
+        // let Some(tile) = object.get_tile() else {
+        //     println!("No tile found, skipping");
+        //     continue;
+        // };
 
         let Some(layer_tile_data) = object.tile_data() else {
             println!("No tile data found, skipping");
             continue;
         };
-
-        println!("tile data {:?}", layer_tile_data);
-        println!("X {} Y {}", object.x, object.y);
 
         let flags = if layer_tile_data.flip_v && layer_tile_data.flip_d {
             TileFlags::FLIP_X | TileFlags::FLIP_Y
@@ -385,10 +387,19 @@ fn build_objects(
             TileFlags::default()
         };
 
+        print!(
+            "x {}\ny {}\nlyr_idx {}\nsprite_idx {}\nflags {:?}\n\n",
+            object.x,
+            object.y,
+            layer_index,
+            layer_tile_data.id(),
+            flags
+        );
+
         tiles.push((
-            ivec3(object.x as i32, object.y as i32, layer_index as i32),
+            ivec3(1, 1, layer_index as i32),
             Some(Tile {
-                sprite_index: tile.id(),
+                sprite_index: layer_tile_data.id(),
                 flags,
                 ..Default::default()
             }),

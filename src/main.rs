@@ -2,6 +2,7 @@ use crate::tiled::TiledMapPlugin;
 use bevy::{prelude::*, window::WindowResolution};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_simple_tilemap::prelude::*;
+use tiled::Player;
 
 mod tiled;
 
@@ -39,42 +40,27 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn input_system(
-    mut camera_transform_query: Query<&mut Transform, With<Camera2d>>,
-    mut tilemap_visible_query: Query<&mut Visibility, With<TileMap>>,
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
+    mut player_transform_query: Query<&mut Transform, With<Player>>,
 ) {
-    const MOVE_SPEED: f32 = 100.0;
-    const ZOOM_SPEED: f32 = 10.0;
+    const MOVE_SPEED: f32 = 5.0;
 
-    if let Some(mut tf) = camera_transform_query.iter_mut().next() {
-        if keyboard_input.pressed(KeyCode::X) {
-            tf.scale -= Vec3::splat(ZOOM_SPEED) * time.delta_seconds();
-        } else if keyboard_input.pressed(KeyCode::Z) {
-            tf.scale += Vec3::splat(ZOOM_SPEED) * time.delta_seconds();
-        }
-
-        if keyboard_input.pressed(KeyCode::A) {
+    if let Some(mut tf) = player_transform_query.iter_mut().next() {
+        if keyboard_input.pressed(KeyCode::Left) {
+            println!("WOOO LEFT");
             tf.translation.x -= MOVE_SPEED * time.delta_seconds();
-        } else if keyboard_input.pressed(KeyCode::D) {
+        } else if keyboard_input.pressed(KeyCode::Right) {
+            println!("WOOO RIGHT");
             tf.translation.x += MOVE_SPEED * time.delta_seconds();
         }
 
-        if keyboard_input.pressed(KeyCode::S) {
+        if keyboard_input.pressed(KeyCode::Down) {
+            println!("WOOO DOWN");
             tf.translation.y -= MOVE_SPEED * time.delta_seconds();
-        } else if keyboard_input.pressed(KeyCode::W) {
+        } else if keyboard_input.pressed(KeyCode::Up) {
+            println!("WOOO UP");
             tf.translation.y += MOVE_SPEED * time.delta_seconds();
-        }
-
-        if keyboard_input.just_pressed(KeyCode::V) {
-            // Toggle visibility
-            let mut visibility = tilemap_visible_query.iter_mut().next().unwrap();
-
-            if *visibility == Visibility::Hidden {
-                *visibility = Visibility::Visible;
-            } else {
-                *visibility = Visibility::Hidden;
-            }
         }
     }
 }
