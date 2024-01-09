@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::{Cursor, ErrorKind};
 use std::path::Path;
 use std::sync::Arc;
+use tiled::Layer;
 
 use bevy::math::{ivec3, vec2};
 use bevy::prelude::{Component, IVec3, Name, ResMut, Update, Vec3};
@@ -19,10 +20,13 @@ use bevy::{
 
 use bevy_simple_tilemap::{prelude::*, TileFlags};
 use thiserror::Error;
+use tiled::{ObjectLayer, TileLayer};
 
 pub struct TilemapSize {
     pub columns: usize,
     pub rows: usize,
+    pub width: usize,
+    pub height: usize,
 }
 
 pub struct TilemapTileSize {
@@ -159,6 +163,7 @@ pub fn process_loaded_maps(
     new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
 ) {
     let mut changed_maps = Vec::<AssetId<TiledMap>>::default();
+
     for event in map_events.read() {
         match event {
             AssetEvent::Added { id } => {
@@ -190,6 +195,7 @@ pub fn process_loaded_maps(
             if map_handle.id() != *changed_map {
                 continue;
             }
+
             if let Some(tiled_map) = maps.get(map_handle) {
                 for (tileset_index, tileset) in tiled_map.map.tilesets().iter().enumerate() {
                     let Some(tilemap_texture) = tiled_map.tilemap_textures.get(&tileset_index)
@@ -211,77 +217,26 @@ pub fn process_loaded_maps(
                     let tilemap_size = TilemapSize {
                         columns: tileset.columns as usize,
                         rows: (tileset.tilecount / tileset.columns) as usize,
+                        width: tiled_map.map.width as usize,
+                        height: tiled_map.map.height as usize,
                     };
 
                     // Once materials have been created/added we need to then create the layers.
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
-                        let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
-
-                        // TODO: Rather than make this a tiles only renderer, we should detect
-                        // layer type and call out to a renderer for that type
-                        let tiled::LayerType::Tiles(tile_layer) = layer.layer_type() else {
-                            log::info!(
-                                "Skipping layer {} because only tile layers are supported.",
-                                layer.id()
-                            );
-                            continue;
-                        };
-
-                        let tiled::TileLayer::Finite(layer_data) = tile_layer else {
-                            log::info!(
-                                "Skipping layer {} because only finite layers are supported.",
-                                layer.id()
-                            );
-                            continue;
-                        };
-
-                        for x in 0..tiled_map.map.width {
-                            for y in 0..tiled_map.map.height {
-                                // Transform TMX coords into bevy coords.
-                                let mapped_y = tiled_map.map.height - 1 - y;
-
-                                let mapped_x = x as i32;
-                                let mapped_y = mapped_y as i32;
-
-                                let layer_tile = match layer_data.get_tile(mapped_x, mapped_y) {
-                                    Some(t) => t,
-                                    None => {
-                                        continue;
-                                    }
-                                };
-
-                                if tileset_index != layer_tile.tileset_index() {
-                                    continue;
-                                }
-
-                                let layer_tile_data =
-                                    match layer_data.get_tile_data(mapped_x, mapped_y) {
-                                        Some(d) => d,
-                                        None => {
-                                            continue;
-                                        }
-                                    };
-
-                                let flags = if layer_tile_data.flip_v && layer_tile_data.flip_d {
-                                    TileFlags::FLIP_X | TileFlags::FLIP_Y
-                                } else if layer_tile_data.flip_v {
-                                    TileFlags::FLIP_Y
-                                } else if layer_tile_data.flip_d {
-                                    TileFlags::FLIP_X
-                                } else {
-                                    TileFlags::default()
-                                };
-
-                                tiles.push((
-                                    ivec3(x as i32, y as i32, layer_index as i32),
-                                    Some(Tile {
-                                        sprite_index: layer_tile.id(),
-                                        flags,
-                                        ..Default::default()
-                                    }),
-                                ));
+                        let tiles = match layer.layer_type() {
+                            tiled::LayerType::Tiles(tile_layer) => {
+                                build_tiles(&tilemap_size, tileset_index, layer_index, tile_layer)
                             }
-                        }
+                            tiled::LayerType::Objects(object_layer) => {
+                                build_objects(layer, object_layer)
+                            }
+                            _ => None,
+                        };
+
+                        let Some(tiles) = tiles else {
+                            println!("No tiles for layer {}", layer_index);
+                            continue;
+                        };
 
                         let mut tilemap = TileMap::default();
                         tilemap.set_tiles(tiles);
@@ -332,6 +287,77 @@ pub fn process_loaded_maps(
             }
         }
     }
+}
+
+fn build_tiles(
+    tilemap_size: &TilemapSize,
+    tileset_index: usize,
+    layer_index: usize,
+    tile_layer: TileLayer,
+) -> Option<Vec<(IVec3, Option<Tile>)>> {
+    let tiled::TileLayer::Finite(layer_data) = tile_layer else {
+        log::info!(
+            "Skipping layer {} because only finite layers are supported.",
+            layer_index,
+        );
+        return None;
+    };
+
+    let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
+
+    for x in 0..tilemap_size.width {
+        for y in 0..tilemap_size.height {
+            // Transform TMX coords into bevy coords.
+            let mapped_y = tilemap_size.height - 1 - y;
+
+            let mapped_x = x as i32;
+            let mapped_y = mapped_y as i32;
+
+            let layer_tile = match layer_data.get_tile(mapped_x, mapped_y) {
+                Some(t) => t,
+                None => {
+                    continue;
+                }
+            };
+
+            if tileset_index != layer_tile.tileset_index() {
+                continue;
+            }
+
+            let layer_tile_data = match layer_data.get_tile_data(mapped_x, mapped_y) {
+                Some(d) => d,
+                None => {
+                    continue;
+                }
+            };
+
+            let flags = if layer_tile_data.flip_v && layer_tile_data.flip_d {
+                TileFlags::FLIP_X | TileFlags::FLIP_Y
+            } else if layer_tile_data.flip_v {
+                TileFlags::FLIP_Y
+            } else if layer_tile_data.flip_d {
+                TileFlags::FLIP_X
+            } else {
+                TileFlags::default()
+            };
+
+            tiles.push((
+                ivec3(x as i32, y as i32, layer_index as i32),
+                Some(Tile {
+                    sprite_index: layer_tile.id(),
+                    flags,
+                    ..Default::default()
+                }),
+            ));
+        }
+    }
+
+    Some(tiles)
+}
+
+fn build_objects(layer: Layer, object_layer: ObjectLayer) -> Option<Vec<(IVec3, Option<Tile>)>> {
+    println!("XXXXXX Build object layer");
+    None
 }
 
 #[derive(Component, Debug)]
