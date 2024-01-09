@@ -228,7 +228,7 @@ pub fn process_loaded_maps(
                                 build_tiles(&tilemap_size, tileset_index, layer_index, tile_layer)
                             }
                             tiled::LayerType::Objects(object_layer) => {
-                                build_objects(layer, object_layer)
+                                build_objects(layer_index, object_layer)
                             }
                             _ => None,
                         };
@@ -355,9 +355,47 @@ fn build_tiles(
     Some(tiles)
 }
 
-fn build_objects(layer: Layer, object_layer: ObjectLayer) -> Option<Vec<(IVec3, Option<Tile>)>> {
-    println!("XXXXXX Build object layer");
-    None
+fn build_objects(
+    layer_index: usize,
+    object_layer: ObjectLayer,
+) -> Option<Vec<(IVec3, Option<Tile>)>> {
+    let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
+
+    for object in object_layer.objects() {
+        let Some(tile) = object.get_tile() else {
+            println!("No tile found, skipping");
+            continue;
+        };
+
+        let Some(layer_tile_data) = object.tile_data() else {
+            println!("No tile data found, skipping");
+            continue;
+        };
+
+        println!("tile data {:?}", layer_tile_data);
+        println!("X {} Y {}", object.x, object.y);
+
+        let flags = if layer_tile_data.flip_v && layer_tile_data.flip_d {
+            TileFlags::FLIP_X | TileFlags::FLIP_Y
+        } else if layer_tile_data.flip_v {
+            TileFlags::FLIP_Y
+        } else if layer_tile_data.flip_d {
+            TileFlags::FLIP_X
+        } else {
+            TileFlags::default()
+        };
+
+        tiles.push((
+            ivec3(object.x as i32, object.y as i32, layer_index as i32),
+            Some(Tile {
+                sprite_index: tile.id(),
+                flags,
+                ..Default::default()
+            }),
+        ));
+    }
+
+    Some(tiles)
 }
 
 #[derive(Component, Debug)]
