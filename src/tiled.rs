@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::io::{Cursor, ErrorKind};
 use std::path::Path;
 use std::sync::Arc;
 
 use bevy::math::{ivec3, vec2};
-use bevy::prelude::{IVec3, Name, ResMut, Update, Vec3};
+use bevy::prelude::{Component, IVec3, Name, ResMut, Update, Vec3};
 use bevy::sprite::TextureAtlas;
 use bevy::{
     asset::{io::Reader, AssetLoader, AssetPath, AsyncReadExt},
@@ -13,7 +14,7 @@ use bevy::{
         GlobalTransform, Handle, Image, Plugin, Query, Res, Transform,
     },
     reflect::TypePath,
-    utils::{BoxedFuture, HashMap},
+    utils::BoxedFuture,
 };
 
 use bevy_simple_tilemap::{prelude::*, TileFlags};
@@ -308,10 +309,36 @@ pub fn process_loaded_maps(
                         };
 
                         let layer_name = layer.name.clone();
-                        commands.spawn(tilemap_bundle).insert(Name::new(layer_name));
+
+                        match layer_name.as_str() {
+                            "player" => {
+                                commands
+                                    .spawn(tilemap_bundle)
+                                    .insert(Name::new(layer_name))
+                                    .insert(Player);
+                            }
+                            "wall" => {
+                                commands
+                                    .spawn(tilemap_bundle)
+                                    .insert(Name::new(layer_name))
+                                    .insert(Wall);
+                            }
+                            _ => {
+                                commands.spawn(tilemap_bundle).insert(Name::new(layer_name));
+                            }
+                        };
                     }
                 }
             }
         }
     }
 }
+
+#[derive(Component, Debug)]
+pub struct Player;
+
+#[derive(Component, Debug)]
+pub struct Wall;
+
+#[derive(Component, Debug)]
+pub struct Unknown;
