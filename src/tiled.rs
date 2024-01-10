@@ -20,7 +20,9 @@ use bevy::{
 
 use bevy_simple_tilemap::{prelude::*, TileFlags};
 use thiserror::Error;
-use tiled::{ObjectLayer, TileLayer};
+use tiled::TileLayer;
+
+use crate::{VIEW_HEIGHT, VIEW_WIDTH};
 
 pub struct TilemapSize {
     pub columns: usize,
@@ -145,6 +147,7 @@ impl AssetLoader for TiledLoader {
             };
 
             log::info!("Loaded map: {}", load_context.path().display());
+
             Ok(asset_map)
         })
     }
@@ -255,7 +258,11 @@ pub fn process_loaded_maps(
                                     texture_atlas: texture_atlas_handle,
                                     transform: Transform {
                                         scale: Vec3::splat(3.0),
-                                        translation: Vec3::new(0.0, 0.0, 0.0),
+                                        translation: Vec3::new(
+                                            -(VIEW_WIDTH / 2.0),
+                                            -(VIEW_HEIGHT / 2.0),
+                                            0.0,
+                                        ),
                                         ..Default::default()
                                     },
                                     ..Default::default()
@@ -298,7 +305,7 @@ pub fn process_loaded_maps(
 
                                     let sprite_index = layer_tile_data.id();
                                     let sprite_x = object.x * scale;
-                                    let sprite_y = ((tilemap_size.height as f32) - 1.0 - object.y);
+                                    let sprite_y = (tilemap_size.height as f32) - 1.0 - object.y;
                                     let translation =
                                         Vec3::new(sprite_x, sprite_y, layer_index as f32);
 
@@ -439,39 +446,39 @@ fn build_tiles(
     Some(tiles)
 }
 
-fn build_objects(
-    texture_atlas_handle: Handle<TextureAtlas>,
-    layer_index: usize,
-    object_layer: ObjectLayer,
-) -> Option<Vec<SpriteSheetBundle>> {
-    println!("Building objects for layer {}", layer_index);
+// fn build_objects(
+//     texture_atlas_handle: Handle<TextureAtlas>,
+//     layer_index: usize,
+//     object_layer: ObjectLayer,
+// ) -> Option<Vec<SpriteSheetBundle>> {
+//     println!("Building objects for layer {}", layer_index);
 
-    let mut sprites = vec![];
+//     let mut sprites = vec![];
 
-    for object in object_layer.objects() {
-        let Some(layer_tile_data) = object.tile_data() else {
-            println!("No tile data found, skipping");
-            continue;
-        };
+//     for object in object_layer.objects() {
+//         let Some(layer_tile_data) = object.tile_data() else {
+//             println!("No tile data found, skipping");
+//             continue;
+//         };
 
-        let sprite_index = layer_tile_data.id();
-        let translation = Vec3::new(object.x, object.y, layer_index as f32);
+//         let sprite_index = layer_tile_data.id();
+//         let translation = Vec3::new(object.x, object.y, layer_index as f32);
 
-        let sprite = TextureAtlasSprite::new(sprite_index as usize);
-        sprites.push(SpriteSheetBundle {
-            texture_atlas: texture_atlas_handle.clone(),
-            transform: Transform {
-                scale: Vec3::splat(3.0),
-                translation,
-                ..Default::default()
-            },
-            sprite,
-            ..Default::default()
-        });
-    }
+//         let sprite = TextureAtlasSprite::new(sprite_index as usize);
+//         sprites.push(SpriteSheetBundle {
+//             texture_atlas: texture_atlas_handle.clone(),
+//             transform: Transform {
+//                 scale: Vec3::splat(3.0),
+//                 translation,
+//                 ..Default::default()
+//             },
+//             sprite,
+//             ..Default::default()
+//         });
+//     }
 
-    Some(sprites)
-}
+//     Some(sprites)
+// }
 
 #[derive(Component, Debug)]
 pub struct Player;
