@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use bevy::math::{ivec3, vec2};
 use bevy::prelude::{Component, IVec3, Name, ResMut, Update, Vec3};
-use bevy::sprite::TextureAtlas;
+use bevy::reflect::Reflect;
+use bevy::sprite::{SpriteSheetBundle, TextureAtlas, TextureAtlasSprite};
 use bevy::{
     asset::{io::Reader, AssetLoader, AssetPath, AsyncReadExt},
     log,
@@ -45,6 +46,7 @@ impl Plugin for TiledMapPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.init_asset::<TiledMap>()
             .register_asset_loader(TiledLoader)
+            .register_type::<TiledMapBundle>()
             .add_systems(Update, process_loaded_maps);
     }
 }
@@ -56,7 +58,7 @@ pub struct TiledMap {
     pub tile_image_offsets: HashMap<(usize, tiled::TileId), u32>,
 }
 
-#[derive(Default, Bundle)]
+#[derive(Default, Bundle, Reflect)]
 pub struct TiledMapBundle {
     pub tiled_map: Handle<TiledMap>,
     pub transform: Transform,
@@ -163,8 +165,6 @@ pub fn process_loaded_maps(
 ) {
     let mut changed_maps = Vec::<AssetId<TiledMap>>::default();
 
-    // TODO: Add in system to remove existing map
-
     for event in map_events.read() {
         match event {
             AssetEvent::Added { id } => {
@@ -224,64 +224,145 @@ pub fn process_loaded_maps(
 
                     // Once materials have been created/added we need to then create the layers.
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
-                        let tiles = match layer.layer_type() {
+                        match layer.layer_type() {
                             tiled::LayerType::Tiles(tile_layer) => {
-                                build_tiles(&tilemap_size, tileset_index, layer_index, tile_layer)
+                                let Some(tiles) = build_tiles(
+                                    &tilemap_size,
+                                    tileset_index,
+                                    layer_index,
+                                    tile_layer,
+                                ) else {
+                                    println!("No tiles for layer {}", layer_index);
+                                    continue;
+                                };
+
+                                let mut tilemap = TileMap::default();
+                                tilemap.set_tiles(tiles);
+
+                                let texture_atlas = TextureAtlas::from_grid(
+                                    tilemap_texture.clone(),
+                                    vec2(tile_size.x, tile_size.y),
+                                    tilemap_size.columns,
+                                    tilemap_size.rows,
+                                    Some(vec2(tile_spacing.x, tile_spacing.y)),
+                                    None,
+                                );
+
+                                let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+                                let tilemap_bundle = TileMapBundle {
+                                    tilemap,
+                                    texture_atlas: texture_atlas_handle,
+                                    transform: Transform {
+                                        scale: Vec3::splat(3.0),
+                                        translation: Vec3::new(0.0, 0.0, 0.0),
+                                        ..Default::default()
+                                    },
+                                    ..Default::default()
+                                };
+
+                                let layer_name = layer.name.clone();
+
+                                match layer_name.as_str() {
+                                    "wall" => {
+                                        commands
+                                            .spawn(tilemap_bundle)
+                                            .insert(Name::new(layer_name))
+                                            .insert(Wall);
+                                    }
+                                    _ => {
+                                        commands
+                                            .spawn(tilemap_bundle)
+                                            .insert(Name::new(layer_name));
+                                    }
+                                };
                             }
                             tiled::LayerType::Objects(object_layer) => {
-                                build_objects(layer_index, object_layer)
+                                let texture_atlas = TextureAtlas::from_grid(
+                                    tilemap_texture.clone(),
+                                    vec2(tile_size.x, tile_size.y),
+                                    tilemap_size.columns,
+                                    tilemap_size.rows,
+                                    Some(vec2(tile_spacing.x, tile_spacing.y)),
+                                    None,
+                                );
+
+                                let texture_atlas_handle = texture_atlases.add(texture_atlas);
+                                let scale = 3.0;
+
+                                for object in object_layer.objects() {
+                                    let Some(layer_tile_data) = object.tile_data() else {
+                                        println!("No tile data found, skipping");
+                                        continue;
+                                    };
+
+                                    let sprite_index = layer_tile_data.id();
+                                    let sprite_x = object.x * scale;
+                                    let sprite_y = ((tilemap_size.height as f32) - 1.0 - object.y);
+                                    let translation =
+                                        Vec3::new(sprite_x, sprite_y, layer_index as f32);
+
+                                    let sprite = TextureAtlasSprite::new(sprite_index as usize);
+
+                                    let sprite_bundle = SpriteSheetBundle {
+                                        texture_atlas: texture_atlas_handle.clone(),
+                                        transform: Transform {
+                                            scale: Vec3::splat(scale),
+                                            translation,
+                                            ..Default::default()
+                                        },
+                                        sprite,
+                                        ..Default::default()
+                                    };
+
+                                    let layer_name = layer.name.clone();
+                                    match layer_name.as_str() {
+                                        "player" => {
+                                            commands
+                                                .spawn(sprite_bundle)
+                                                .insert(Name::new(layer_name))
+                                                .insert(Player);
+                                        }
+                                        "princess" => {
+                                            commands
+                                                .spawn(sprite_bundle)
+                                                .insert(Name::new(layer_name))
+                                                .insert(Princess);
+                                        }
+                                        _ => {
+                                            commands
+                                                .spawn(sprite_bundle)
+                                                .insert(Name::new(layer_name));
+                                        }
+                                    };
+                                }
+
+                                // let Some(objects) =
+                                //     build_objects(texture_atlas_handle, layer_index, object_layer)
+                                // else {
+                                //     println!("No objects for layer {}", layer_index);
+                                //     continue;
+                                // };
+
+                                // commands.spawn_batch(objects);
+
+                                // let layer_name = layer.name.clone();
+
+                                // match layer_name.as_str() {
+                                //     "player" => {
+                                //         object_entity.insert(Name::new(layer_name)).insert(Player);
+                                //     }
+                                //     "princess" => {
+                                //         object_entity
+                                //             .insert(Name::new(layer_name))
+                                //             .insert(Princess);
+                                //     }
+                                //     _ => {
+                                //         object_entity.insert(Name::new(layer_name));
+                                //     }
+                                // };
                             }
-                            _ => None,
-                        };
-
-                        let Some(tiles) = tiles else {
-                            println!("No tiles for layer {}", layer_index);
-                            continue;
-                        };
-
-                        let mut tilemap = TileMap::default();
-                        tilemap.set_tiles(tiles);
-
-                        let texture_atlas = TextureAtlas::from_grid(
-                            tilemap_texture.clone(),
-                            vec2(tile_size.x, tile_size.y),
-                            tilemap_size.columns,
-                            tilemap_size.rows,
-                            Some(vec2(tile_spacing.x, tile_spacing.y)),
-                            None,
-                        );
-
-                        let texture_atlas_handle = texture_atlases.add(texture_atlas);
-
-                        let tilemap_bundle = TileMapBundle {
-                            tilemap,
-                            texture_atlas: texture_atlas_handle,
-                            transform: Transform {
-                                scale: Vec3::splat(3.0),
-                                translation: Vec3::new(0.0, 0.0, 0.0),
-                                ..Default::default()
-                            },
-                            ..Default::default()
-                        };
-
-                        let layer_name = layer.name.clone();
-
-                        match layer_name.as_str() {
-                            "player" => {
-                                commands
-                                    .spawn(tilemap_bundle)
-                                    .insert(Name::new(layer_name))
-                                    .insert(Player);
-                            }
-                            "wall" => {
-                                commands
-                                    .spawn(tilemap_bundle)
-                                    .insert(Name::new(layer_name))
-                                    .insert(Wall);
-                            }
-                            _ => {
-                                commands.spawn(tilemap_bundle).insert(Name::new(layer_name));
-                            }
+                            _ => (),
                         };
                     }
                 }
@@ -359,58 +440,44 @@ fn build_tiles(
 }
 
 fn build_objects(
+    texture_atlas_handle: Handle<TextureAtlas>,
     layer_index: usize,
     object_layer: ObjectLayer,
-) -> Option<Vec<(IVec3, Option<Tile>)>> {
-    println!("Building object tiles for layer {}", layer_index);
+) -> Option<Vec<SpriteSheetBundle>> {
+    println!("Building objects for layer {}", layer_index);
 
-    let mut tiles: Vec<(IVec3, Option<Tile>)> = vec![];
+    let mut sprites = vec![];
 
     for object in object_layer.objects() {
-        // let Some(tile) = object.get_tile() else {
-        //     println!("No tile found, skipping");
-        //     continue;
-        // };
-
         let Some(layer_tile_data) = object.tile_data() else {
             println!("No tile data found, skipping");
             continue;
         };
 
-        let flags = if layer_tile_data.flip_v && layer_tile_data.flip_d {
-            TileFlags::FLIP_X | TileFlags::FLIP_Y
-        } else if layer_tile_data.flip_v {
-            TileFlags::FLIP_Y
-        } else if layer_tile_data.flip_d {
-            TileFlags::FLIP_X
-        } else {
-            TileFlags::default()
-        };
+        let sprite_index = layer_tile_data.id();
+        let translation = Vec3::new(object.x, object.y, layer_index as f32);
 
-        print!(
-            "x {}\ny {}\nlyr_idx {}\nsprite_idx {}\nflags {:?}\n\n",
-            object.x,
-            object.y,
-            layer_index,
-            layer_tile_data.id(),
-            flags
-        );
-
-        tiles.push((
-            ivec3(1, 1, layer_index as i32),
-            Some(Tile {
-                sprite_index: layer_tile_data.id(),
-                flags,
+        let sprite = TextureAtlasSprite::new(sprite_index as usize);
+        sprites.push(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle.clone(),
+            transform: Transform {
+                scale: Vec3::splat(3.0),
+                translation,
                 ..Default::default()
-            }),
-        ));
+            },
+            sprite,
+            ..Default::default()
+        });
     }
 
-    Some(tiles)
+    Some(sprites)
 }
 
 #[derive(Component, Debug)]
 pub struct Player;
+
+#[derive(Component, Debug)]
+pub struct Princess;
 
 #[derive(Component, Debug)]
 pub struct Wall;
