@@ -11,8 +11,8 @@ use bevy::{
     asset::{io::Reader, AssetLoader, AssetPath, AsyncReadExt},
     log,
     prelude::{
-        Added, Asset, AssetApp, AssetEvent, AssetId, Assets, Bundle, Commands, EventReader,
-        GlobalTransform, Handle, Image, Plugin, Query, Res, Transform,
+        Added, Asset, AssetApp, Assets, Bundle, Commands, GlobalTransform, Handle, Image, Plugin,
+        Query, Res, Transform,
     },
     reflect::TypePath,
     utils::BoxedFuture,
@@ -160,46 +160,14 @@ impl AssetLoader for TiledLoader {
 
 pub fn process_loaded_maps(
     mut commands: Commands,
-    mut map_events: EventReader<AssetEvent<TiledMap>>,
     mut map_query: Query<&Handle<TiledMap>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     maps: Res<Assets<TiledMap>>,
     new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
 ) {
-    let mut changed_maps = Vec::<AssetId<TiledMap>>::default();
-
-    for event in map_events.read() {
-        match event {
-            AssetEvent::Added { id } => {
-                log::info!("Map added!");
-                changed_maps.push(*id);
-            }
-            AssetEvent::Modified { id } => {
-                log::info!("Map changed!");
-                changed_maps.push(*id);
-            }
-            AssetEvent::Removed { id } => {
-                log::info!("Map removed!");
-                // if mesh was modified and removed in the same update, ignore the modification
-                // events are ordered so future modification events are ok
-                changed_maps.retain(|changed_handle| changed_handle == id);
-            }
-            _ => continue,
-        }
-    }
-
     // If we have new map entities add them to the changed_maps list.
-    for new_map_handle in new_maps.iter() {
-        changed_maps.push(new_map_handle.id());
-    }
-
-    for changed_map in changed_maps.iter() {
+    for _new_map in new_maps.iter() {
         for map_handle in map_query.iter_mut() {
-            // only deal with currently changed map
-            if map_handle.id() != *changed_map {
-                continue;
-            }
-
             if let Some(tiled_map) = maps.get(map_handle) {
                 for (tileset_index, tileset) in tiled_map.map.tilesets().iter().enumerate() {
                     let Some(tilemap_texture) = tiled_map.tilemap_textures.get(&tileset_index)
@@ -227,6 +195,7 @@ pub fn process_loaded_maps(
 
                     // Once materials have been created/added we need to then create the layers.
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
+                        log::info!("Processing layer {}", layer_index);
                         match layer.layer_type() {
                             tiled::LayerType::Tiles(tile_layer) => {
                                 let Some(tiles) = build_tiles(
@@ -343,31 +312,6 @@ pub fn process_loaded_maps(
                                         }
                                     };
                                 }
-
-                                // let Some(objects) =
-                                //     build_objects(texture_atlas_handle, layer_index, object_layer)
-                                // else {
-                                //     println!("No objects for layer {}", layer_index);
-                                //     continue;
-                                // };
-
-                                // commands.spawn_batch(objects);
-
-                                // let layer_name = layer.name.clone();
-
-                                // match layer_name.as_str() {
-                                //     "player" => {
-                                //         object_entity.insert(Name::new(layer_name)).insert(Player);
-                                //     }
-                                //     "princess" => {
-                                //         object_entity
-                                //             .insert(Name::new(layer_name))
-                                //             .insert(Princess);
-                                //     }
-                                //     _ => {
-                                //         object_entity.insert(Name::new(layer_name));
-                                //     }
-                                // };
                             }
                             _ => (),
                         };
@@ -445,40 +389,6 @@ fn build_tiles(
 
     Some(tiles)
 }
-
-// fn build_objects(
-//     texture_atlas_handle: Handle<TextureAtlas>,
-//     layer_index: usize,
-//     object_layer: ObjectLayer,
-// ) -> Option<Vec<SpriteSheetBundle>> {
-//     println!("Building objects for layer {}", layer_index);
-
-//     let mut sprites = vec![];
-
-//     for object in object_layer.objects() {
-//         let Some(layer_tile_data) = object.tile_data() else {
-//             println!("No tile data found, skipping");
-//             continue;
-//         };
-
-//         let sprite_index = layer_tile_data.id();
-//         let translation = Vec3::new(object.x, object.y, layer_index as f32);
-
-//         let sprite = TextureAtlasSprite::new(sprite_index as usize);
-//         sprites.push(SpriteSheetBundle {
-//             texture_atlas: texture_atlas_handle.clone(),
-//             transform: Transform {
-//                 scale: Vec3::splat(3.0),
-//                 translation,
-//                 ..Default::default()
-//             },
-//             sprite,
-//             ..Default::default()
-//         });
-//     }
-
-//     Some(sprites)
-// }
 
 #[derive(Component, Debug)]
 pub struct Player;
