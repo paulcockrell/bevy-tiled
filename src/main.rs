@@ -2,7 +2,7 @@ use crate::tiled::TiledMapPlugin;
 use bevy::{prelude::*, window::WindowResolution};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_simple_tilemap::prelude::*;
-use tiled::Princess;
+use tiled::Player;
 
 mod tiled;
 
@@ -45,7 +45,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn input_system(
     keyboard_input: Res<Input<KeyCode>>,
     time: Res<Time>,
-    mut player_transform_query: Query<&mut Transform, With<Princess>>,
+    mut player_transform_query: Query<&mut Transform, With<Player>>,
 ) {
     const MOVE_SPEED: f32 = 100.0;
 

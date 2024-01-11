@@ -311,6 +311,12 @@ pub fn process_loaded_maps(
                                                 .insert(Name::new(layer_name))
                                                 .insert(Princess);
                                         }
+                                        "enemy" => {
+                                            commands
+                                                .spawn(sprite_bundle)
+                                                .insert(Name::new(layer_name))
+                                                .insert(Enemy);
+                                        }
                                         _ => {
                                             commands
                                                 .spawn(sprite_bundle)
@@ -401,6 +407,9 @@ pub struct Player;
 
 #[derive(Component, Debug)]
 pub struct Princess;
+
+#[derive(Component, Debug)]
+pub struct Enemy;
 
 #[derive(Component, Debug)]
 pub struct Wall;
