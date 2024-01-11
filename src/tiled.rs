@@ -273,10 +273,21 @@ pub fn process_loaded_maps(
                                     };
 
                                     let sprite_index = layer_tile_data.id();
-                                    let sprite_x = object.x * scale;
-                                    let sprite_y = (tilemap_size.height as f32) - 1.0 - object.y;
+                                    let sprite_x = (object.x * scale)
+                                        - ((tilemap_size.width as f32 * tile_size.x * scale) / 2.0);
+                                    let sprite_y = -((object.y * scale)
+                                        - ((tilemap_size.height as f32 * tile_size.y * scale)
+                                            / 2.0));
                                     let translation =
                                         Vec3::new(sprite_x, sprite_y, layer_index as f32);
+
+                                    log::info!(
+                                        "org_x {} org_y {}, new_x {} new_y {}",
+                                        object.x,
+                                        object.y,
+                                        sprite_x,
+                                        sprite_y,
+                                    );
 
                                     let sprite = TextureAtlasSprite::new(sprite_index as usize);
 
