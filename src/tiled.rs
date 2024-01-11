@@ -22,8 +22,6 @@ use bevy_simple_tilemap::{prelude::*, TileFlags};
 use thiserror::Error;
 use tiled::TileLayer;
 
-use crate::{VIEW_HEIGHT, VIEW_WIDTH};
-
 pub struct TilemapSize {
     pub columns: usize,
     pub rows: usize,
@@ -165,6 +163,9 @@ pub fn process_loaded_maps(
     maps: Res<Assets<TiledMap>>,
     new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
 ) {
+    // TODO: Move this to constant
+    let scale = 3.0;
+
     // If we have new map entities add them to the changed_maps list.
     for _new_map in new_maps.iter() {
         for map_handle in map_query.iter_mut() {
@@ -195,7 +196,6 @@ pub fn process_loaded_maps(
 
                     // Once materials have been created/added we need to then create the layers.
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
-                        log::info!("Processing layer {}", layer_index);
                         match layer.layer_type() {
                             tiled::LayerType::Tiles(tile_layer) => {
                                 let Some(tiles) = build_tiles(
@@ -228,8 +228,12 @@ pub fn process_loaded_maps(
                                     transform: Transform {
                                         scale: Vec3::splat(3.0),
                                         translation: Vec3::new(
-                                            -(VIEW_WIDTH / 2.0),
-                                            -(VIEW_HEIGHT / 2.0),
+                                            -((tilemap_size.width as f32 * tile_size.x * scale)
+                                                / 2.0)
+                                                + ((tile_size.x * scale) / 2.0),
+                                            -((tilemap_size.height as f32 * tile_size.y * scale)
+                                                / 2.0)
+                                                + ((tile_size.y * scale) / 2.0),
                                             0.0,
                                         ),
                                         ..Default::default()
@@ -264,7 +268,6 @@ pub fn process_loaded_maps(
                                 );
 
                                 let texture_atlas_handle = texture_atlases.add(texture_atlas);
-                                let scale = 3.0;
 
                                 for object in object_layer.objects() {
                                     let Some(layer_tile_data) = object.tile_data() else {
@@ -280,14 +283,6 @@ pub fn process_loaded_maps(
                                             / 2.0));
                                     let translation =
                                         Vec3::new(sprite_x, sprite_y, layer_index as f32);
-
-                                    log::info!(
-                                        "org_x {} org_y {}, new_x {} new_y {}",
-                                        object.x,
-                                        object.y,
-                                        sprite_x,
-                                        sprite_y,
-                                    );
 
                                     let sprite = TextureAtlasSprite::new(sprite_index as usize);
 
