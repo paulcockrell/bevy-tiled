@@ -22,6 +22,8 @@ use bevy_simple_tilemap::{prelude::*, TileFlags};
 use thiserror::Error;
 use tiled::TileLayer;
 
+use crate::movement::Moveable;
+
 pub struct TilemapSize {
     pub columns: usize,
     pub rows: usize,
@@ -29,15 +31,29 @@ pub struct TilemapSize {
     pub height: usize,
 }
 
+/// TimemapTileSize contains the width and height of a tile
+#[derive(Component, Copy, Clone, Debug)]
 pub struct TilemapTileSize {
-    pub x: f32,
-    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl TilemapTileSize {
+    fn scaled(&self, scale: f32) -> Self {
+        Self {
+            width: self.width * scale,
+            height: self.height * scale,
+        }
+    }
 }
 
 pub struct TilemapSpacing {
     pub x: f32,
     pub y: f32,
 }
+
+#[derive(Component, Debug)]
+pub struct TileCollider;
 
 #[derive(Default)]
 pub struct TiledMapPlugin;
@@ -178,8 +194,8 @@ pub fn process_loaded_maps(
                     };
 
                     let tile_size = TilemapTileSize {
-                        x: tileset.tile_width as f32,
-                        y: tileset.tile_height as f32,
+                        width: tileset.tile_width as f32,
+                        height: tileset.tile_height as f32,
                     };
 
                     let tile_spacing = TilemapSpacing {
@@ -213,7 +229,7 @@ pub fn process_loaded_maps(
 
                                 let texture_atlas = TextureAtlas::from_grid(
                                     tilemap_texture.clone(),
-                                    vec2(tile_size.x, tile_size.y),
+                                    vec2(tile_size.width, tile_size.height),
                                     tilemap_size.columns,
                                     tilemap_size.rows,
                                     Some(vec2(tile_spacing.x, tile_spacing.y)),
@@ -228,12 +244,14 @@ pub fn process_loaded_maps(
                                     transform: Transform {
                                         scale: Vec3::splat(3.0),
                                         translation: Vec3::new(
-                                            -((tilemap_size.width as f32 * tile_size.x * scale)
+                                            -((tilemap_size.width as f32
+                                                * tile_size.scaled(scale).width)
                                                 / 2.0)
-                                                + ((tile_size.x * scale) / 2.0),
-                                            -((tilemap_size.height as f32 * tile_size.y * scale)
+                                                + ((tile_size.scaled(scale).width) / 2.0),
+                                            -((tilemap_size.height as f32
+                                                * tile_size.scaled(scale).height)
                                                 / 2.0)
-                                                + ((tile_size.y * scale) / 2.0),
+                                                + ((tile_size.scaled(scale).height) / 2.0),
                                             0.0,
                                         ),
                                         ..Default::default()
@@ -244,11 +262,12 @@ pub fn process_loaded_maps(
                                 let layer_name = layer.name.clone();
 
                                 match layer_name.as_str() {
-                                    "wall" => {
+                                    "buildings" => {
                                         commands
                                             .spawn(tilemap_bundle)
                                             .insert(Name::new(layer_name))
-                                            .insert(Wall);
+                                            .insert(tile_size.scaled(scale))
+                                            .insert(Buildings);
                                     }
                                     _ => {
                                         commands
@@ -260,7 +279,7 @@ pub fn process_loaded_maps(
                             tiled::LayerType::Objects(object_layer) => {
                                 let texture_atlas = TextureAtlas::from_grid(
                                     tilemap_texture.clone(),
-                                    vec2(tile_size.x, tile_size.y),
+                                    vec2(tile_size.width, tile_size.height),
                                     tilemap_size.columns,
                                     tilemap_size.rows,
                                     Some(vec2(tile_spacing.x, tile_spacing.y)),
@@ -277,9 +296,12 @@ pub fn process_loaded_maps(
 
                                     let sprite_index = layer_tile_data.id();
                                     let sprite_x = (object.x * scale)
-                                        - ((tilemap_size.width as f32 * tile_size.x * scale) / 2.0);
+                                        - ((tilemap_size.width as f32
+                                            * tile_size.scaled(scale).width)
+                                            / 2.0);
                                     let sprite_y = -((object.y * scale)
-                                        - ((tilemap_size.height as f32 * tile_size.y * scale)
+                                        - ((tilemap_size.height as f32
+                                            * tile_size.scaled(scale).height)
                                             / 2.0));
                                     let translation =
                                         Vec3::new(sprite_x, sprite_y, layer_index as f32);
@@ -303,18 +325,21 @@ pub fn process_loaded_maps(
                                             commands
                                                 .spawn(sprite_bundle)
                                                 .insert(Name::new(layer_name))
+                                                .insert(Moveable::new())
                                                 .insert(Player);
                                         }
                                         "princess" => {
                                             commands
                                                 .spawn(sprite_bundle)
                                                 .insert(Name::new(layer_name))
+                                                .insert(Moveable::new())
                                                 .insert(Princess);
                                         }
                                         "enemy" => {
                                             commands
                                                 .spawn(sprite_bundle)
                                                 .insert(Name::new(layer_name))
+                                                .insert(Moveable::new())
                                                 .insert(Enemy);
                                         }
                                         _ => {
@@ -367,6 +392,18 @@ fn build_tiles(
                 }
             };
 
+            // TODO: Store this collision data in its own sprite
+            // so we can look it up and determine moveable sprite
+            // movements
+            //
+            // Extract collision objects
+            if let Some(t) = layer_tile.get_tile() {
+                if let Some(collision) = &t.collision {
+                    let obj_data = collision.object_data();
+                    log::info!("data {:?}", obj_data);
+                }
+            }
+
             if tileset_index != layer_tile.tileset_index() {
                 continue;
             }
@@ -412,7 +449,7 @@ pub struct Princess;
 pub struct Enemy;
 
 #[derive(Component, Debug)]
-pub struct Wall;
+pub struct Buildings;
 
 #[derive(Component, Debug)]
 pub struct Unknown;
