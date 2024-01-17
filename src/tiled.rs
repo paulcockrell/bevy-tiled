@@ -3,10 +3,11 @@ use std::io::{Cursor, ErrorKind};
 use std::path::Path;
 use std::sync::Arc;
 
-use bevy::math::{ivec3, vec2};
+use bevy::math::{ivec3, vec2, Vec2};
 use bevy::prelude::{Component, IVec3, Name, ResMut, Update, Vec3};
 use bevy::reflect::Reflect;
-use bevy::sprite::{SpriteSheetBundle, TextureAtlas, TextureAtlasSprite};
+use bevy::render::color::Color;
+use bevy::sprite::{Sprite, SpriteBundle, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite};
 use bevy::{
     asset::{io::Reader, AssetLoader, AssetPath, AsyncReadExt},
     log,
@@ -215,10 +216,10 @@ pub fn process_loaded_maps(
                         match layer.layer_type() {
                             tiled::LayerType::Tiles(tile_layer) => {
                                 let Some(tiles) = build_tiles(
+                                    &tile_layer,
                                     &tilemap_size,
                                     tileset_index,
                                     layer_index,
-                                    tile_layer,
                                 ) else {
                                     println!("No tiles for layer {}", layer_index);
                                     continue;
@@ -226,6 +227,42 @@ pub fn process_loaded_maps(
 
                                 let mut tilemap = TileMap::default();
                                 tilemap.set_tiles(tiles);
+
+                                // Spawn obstacles, this could do with putting somewhere nice, or
+                                // merging into the build_tiles...
+                                if let Some(obstacles) =
+                                    build_obstacles(&tilemap_size, &tile_layer, layer_index)
+                                {
+                                    for obstacle in obstacles {
+                                        let w = obstacle.width;
+                                        let h = obstacle.height;
+                                        let x = (obstacle.x * scale)
+                                            - ((tilemap_size.width as f32
+                                                * tile_size.scaled(scale).width)
+                                                / 2.0);
+                                        let y = -((obstacle.y * scale)
+                                            - ((tilemap_size.height as f32
+                                                * tile_size.scaled(scale).height)
+                                                / 2.0));
+
+                                        let transform = Transform::from_xyz(x, y, 1.0);
+
+                                        commands.spawn((transform, obstacle));
+                                        commands
+                                            .spawn(SpriteBundle {
+                                                sprite: Sprite {
+                                                    color: Color::rgb(0.25, 0.25, 0.75),
+                                                    custom_size: Some(Vec2::new(w, h)),
+                                                    ..Default::default()
+                                                },
+                                                transform: Transform::from_translation(Vec3::new(
+                                                    x, y, 20.,
+                                                )),
+                                                ..Default::default()
+                                            })
+                                            .insert(Name::new("ObsVis"));
+                                    }
+                                }
 
                                 let texture_atlas = TextureAtlas::from_grid(
                                     tilemap_texture.clone(),
@@ -360,10 +397,10 @@ pub fn process_loaded_maps(
 }
 
 fn build_tiles(
+    tile_layer: &TileLayer,
     tilemap_size: &TilemapSize,
     tileset_index: usize,
     layer_index: usize,
-    tile_layer: TileLayer,
 ) -> Option<Vec<(IVec3, Option<Tile>)>> {
     println!("Building tile tiles for layer {}", layer_index);
 
@@ -392,17 +429,36 @@ fn build_tiles(
                 }
             };
 
-            // TODO: Store this collision data in its own sprite
-            // so we can look it up and determine moveable sprite
-            // movements
-            //
-            // Extract collision objects
-            if let Some(t) = layer_tile.get_tile() {
-                if let Some(collision) = &t.collision {
-                    let obj_data = collision.object_data();
-                    log::info!("data {:?}", obj_data);
-                }
-            }
+            // // TODO: Store this collision data in its own sprite
+            // // so we can look it up and determine moveable sprite
+            // // movements
+            // //
+            // // Extract collision objects
+            // let obstacle = if let Some(tile) = layer_tile.get_tile() {
+            //     if let Some(collision) = &tile.collision {
+            //         let object_data = collision.object_data();
+            //         // Just grab the first collision shape if any.
+            //         // TODO: Grab all shapes, and sort out this horrible nesting!
+            //         if let Some(data) = object_data.first() {
+            //             if let tiled::ObjectShape::Rect { width, height } = data.shape {
+            //                 Some(Obstacle {
+            //                     x: mapped_x as f32,
+            //                     y: mapped_y as f32,
+            //                     width,
+            //                     height,
+            //                 })
+            //             } else {
+            //                 None
+            //             }
+            //         } else {
+            //             None
+            //         }
+            //     } else {
+            //         None
+            //     }
+            // } else {
+            //     None
+            // };
 
             if tileset_index != layer_tile.tileset_index() {
                 continue;
@@ -437,6 +493,75 @@ fn build_tiles(
     }
 
     Some(tiles)
+}
+
+#[derive(Component, Debug)]
+pub struct Obstacle {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+fn build_obstacles(
+    tilemap_size: &TilemapSize,
+    tile_layer: &TileLayer,
+    layer_index: usize,
+) -> Option<Vec<Obstacle>> {
+    println!("Building obstacles for layer {}", layer_index);
+
+    let tiled::TileLayer::Finite(layer_data) = tile_layer else {
+        log::info!(
+            "Skipping layer {} because only finite layers are supported.",
+            layer_index,
+        );
+        return None;
+    };
+
+    let mut obstacles: Vec<Obstacle> = vec![];
+
+    for x in 0..tilemap_size.width {
+        for y in 0..tilemap_size.height {
+            // Transform TMX coords into bevy coords.
+            let mapped_y = tilemap_size.height - 1 - y;
+
+            let mapped_x = x as i32;
+            let mapped_y = mapped_y as i32;
+
+            let layer_tile = match layer_data.get_tile(mapped_x, mapped_y) {
+                Some(t) => t,
+                None => {
+                    continue;
+                }
+            };
+
+            // Extract obstacles. We are keeping this simple and only dealing
+            // with Rect (rectangle) collision shapes.
+            let Some(tile) = layer_tile.get_tile() else {
+                continue;
+            };
+
+            let Some(collision) = &tile.collision else {
+                continue;
+            };
+
+            let object_data = collision.object_data();
+
+            for data in object_data.iter() {
+                if let tiled::ObjectShape::Rect { width, height } = data.shape {
+                    let obstacle = Obstacle {
+                        x: mapped_x as f32,
+                        y: mapped_y as f32,
+                        width,
+                        height,
+                    };
+                    obstacles.push(obstacle);
+                }
+            }
+        }
+    }
+
+    Some(obstacles)
 }
 
 #[derive(Component, Debug)]
