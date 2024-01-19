@@ -265,7 +265,7 @@ pub fn process_loaded_maps(
                                                 },
                                                 // Set to visible if you want to see the collision
                                                 // areas for debugging
-                                                visibility: Visibility::Hidden,
+                                                visibility: Visibility::Visible,
                                                 ..Default::default()
                                             })
                                             .insert(Obstacle {
@@ -274,7 +274,7 @@ pub fn process_loaded_maps(
                                                 width: w,
                                                 height: h,
                                             })
-                                            .insert(Name::new("ObsVis"));
+                                            .insert(Name::new("Obstacle"));
                                     }
                                 }
 
