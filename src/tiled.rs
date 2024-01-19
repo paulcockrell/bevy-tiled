@@ -221,7 +221,7 @@ pub fn process_loaded_maps(
                                     tileset_index,
                                     layer_index,
                                 ) else {
-                                    println!("No tiles for layer {}", layer_index);
+                                    log::info!("No tiles for layer {}", layer_index);
                                     continue;
                                 };
 
@@ -248,16 +248,6 @@ pub fn process_loaded_maps(
                                                 / 2.0))
                                             - (tile_size.scaled(scale).height / 2.0);
 
-                                        log::info!(
-                                            "ob_x {} ob_y {}, sp_x {} sp_y {}",
-                                            obstacle.x,
-                                            sprite_x,
-                                            obstacle.y,
-                                            sprite_y
-                                        );
-
-                                        // Spawn obstacle entity
-                                        // Draw where the obstacle entity is
                                         commands
                                             .spawn(SpriteBundle {
                                                 sprite: Sprite {
@@ -300,7 +290,6 @@ pub fn process_loaded_maps(
                                         + ((tile_size.scaled(scale).height) / 2.0),
                                     0.0,
                                 );
-                                log::info!("building translation {:?}", translation);
 
                                 let tilemap_bundle = TileMapBundle {
                                     tilemap,
@@ -344,7 +333,7 @@ pub fn process_loaded_maps(
 
                                 for object in object_layer.objects() {
                                     let Some(layer_tile_data) = object.tile_data() else {
-                                        println!("No tile data found, skipping");
+                                        log::info!("No tile data found, skipping");
                                         continue;
                                     };
 
@@ -419,7 +408,7 @@ fn build_tiles(
     tileset_index: usize,
     layer_index: usize,
 ) -> Option<Vec<(IVec3, Option<Tile>)>> {
-    println!("Building tile tiles for layer {}", layer_index);
+    log::info!("Building tile tiles for layer {}", layer_index);
 
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
         log::info!(
@@ -494,7 +483,7 @@ fn build_obstacles(
     tile_layer: &TileLayer,
     layer_index: usize,
 ) -> Option<Vec<Obstacle>> {
-    println!("Building obstacles for layer {}", layer_index);
+    log::info!("Building obstacles for layer {}", layer_index);
 
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
         log::info!(
