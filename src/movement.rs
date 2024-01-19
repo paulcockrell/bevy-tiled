@@ -80,8 +80,13 @@ fn input_system_keyboard(
         return;
     }
 
-    player_movement.direction = Direction::Stopped;
-    player_movement.speed = 0.0;
+    // movement coasting
+    if player_movement.speed > 0. {
+        player_movement.speed -= 2.0;
+    } else {
+        player_movement.direction = Direction::Stopped;
+        player_movement.speed = 0.0;
+    }
 }
 
 fn update_player_position(
