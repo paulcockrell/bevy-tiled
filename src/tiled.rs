@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bevy::math::{ivec3, vec2, Vec2};
-use bevy::prelude::{Component, IVec3, Name, ResMut, Update, Vec3};
+use bevy::prelude::{Component, IVec3, Name, ResMut, Update, Vec3, Visibility};
 use bevy::reflect::Reflect;
 use bevy::render::color::Color;
 use bevy::sprite::{Sprite, SpriteBundle, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite};
@@ -263,9 +263,17 @@ pub fn process_loaded_maps(
                                                     },
                                                     ..Default::default()
                                                 },
+                                                // Set to visible if you want to see the collision
+                                                // areas for debugging
+                                                visibility: Visibility::Hidden,
                                                 ..Default::default()
                                             })
-                                            .insert(obstacle)
+                                            .insert(Obstacle {
+                                                x: sprite_x,
+                                                y: sprite_y,
+                                                width: w,
+                                                height: h,
+                                            })
                                             .insert(Name::new("ObsVis"));
                                     }
                                 }
@@ -369,7 +377,11 @@ pub fn process_loaded_maps(
                                                 .spawn(sprite_bundle)
                                                 .insert(Name::new(layer_name))
                                                 .insert(Moveable::new())
-                                                .insert(Player);
+                                                .insert(Player)
+                                                .insert(Size {
+                                                    width: tile_size.scaled(scale).width,
+                                                    height: tile_size.scaled(scale).height,
+                                                });
                                         }
                                         "princess" => {
                                             commands
@@ -561,3 +573,9 @@ pub struct Buildings;
 
 #[derive(Component, Debug)]
 pub struct Unknown;
+
+#[derive(Component, Debug)]
+pub struct Size {
+    pub width: f32,
+    pub height: f32,
+}

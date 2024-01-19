@@ -3,7 +3,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-use crate::tiled::{Obstacle, Player};
+use crate::tiled::{Obstacle, Player, Size};
 
 const PLAYER_SPEED: f32 = 100.0;
 
@@ -40,8 +40,8 @@ impl Plugin for MovementPlugin {
             (
                 input_system_keyboard,
                 input_system_touch,
-                check_obstacle,
                 update_player_position,
+                check_obstacle,
             )
                 .chain(),
         );
@@ -133,20 +133,19 @@ fn input_system_touch(
 }
 
 fn check_obstacle(
-    mut player_query: Query<(&mut Transform, &mut Moveable), With<Player>>,
+    mut player_query: Query<(&mut Transform, &mut Moveable, &Size), With<Player>>,
     obstacle_query: Query<(&Transform, &Obstacle), Without<Player>>,
 ) {
-    let Ok((mut player_transform, mut player_moveable)) = player_query.get_single_mut() else {
+    let Ok((mut player_transform, mut player_moveable, player_size)) =
+        player_query.get_single_mut()
+    else {
         return;
     };
-
-    // TODO: Grab tile size from world if present
-    let tile_size = 48.0;
 
     for (obstacle_transform, obstacle) in obstacle_query.iter() {
         if let Some(collision) = collide(
             player_transform.translation,
-            Vec2::new(tile_size, tile_size),
+            Vec2::new(player_size.width, player_size.height),
             obstacle_transform.translation,
             Vec2::new(obstacle.width, obstacle.height),
         ) {
@@ -158,7 +157,7 @@ fn check_obstacle(
                 player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.x = obstacle_transform.translation.x + tile_size;
+                player_transform.translation.x = obstacle_transform.translation.x + obstacle.width;
             };
 
             // Moving right, collided with left side of wall
@@ -169,7 +168,7 @@ fn check_obstacle(
                 player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.x = obstacle_transform.translation.x - tile_size;
+                player_transform.translation.x = obstacle_transform.translation.x - obstacle.width;
             };
 
             // Moving up, collided with bottom side of wall
@@ -180,7 +179,7 @@ fn check_obstacle(
                 player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.y = obstacle_transform.translation.y - tile_size;
+                player_transform.translation.y = obstacle_transform.translation.y - obstacle.height;
             };
 
             // Moving down, collided with top side of wall
@@ -191,7 +190,7 @@ fn check_obstacle(
                 player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.y = obstacle_transform.translation.y + tile_size;
+                player_transform.translation.y = obstacle_transform.translation.y + obstacle.height;
             };
         }
     }
