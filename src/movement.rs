@@ -1,5 +1,4 @@
 use bevy::{
-    log,
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
 };

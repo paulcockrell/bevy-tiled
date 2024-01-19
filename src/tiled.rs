@@ -234,32 +234,48 @@ pub fn process_loaded_maps(
                                     build_obstacles(&tilemap_size, &tile_layer, layer_index)
                                 {
                                     for obstacle in obstacles {
-                                        let w = obstacle.width;
-                                        let h = obstacle.height;
-                                        let x = (obstacle.x * scale)
+                                        let w = obstacle.width * scale;
+                                        let h = obstacle.height * scale;
+                                        let sprite_x = (obstacle.x * tile_size.scaled(scale).width)
                                             - ((tilemap_size.width as f32
                                                 * tile_size.scaled(scale).width)
-                                                / 2.0);
-                                        let y = -((obstacle.y * scale)
+                                                / 2.0)
+                                            + (tile_size.scaled(scale).width / 2.0);
+                                        let sprite_y = -((obstacle.y
+                                            * tile_size.scaled(scale).height)
                                             - ((tilemap_size.height as f32
                                                 * tile_size.scaled(scale).height)
-                                                / 2.0));
+                                                / 2.0))
+                                            - (tile_size.scaled(scale).height / 2.0);
 
-                                        let transform = Transform::from_xyz(x, y, 1.0);
+                                        log::info!(
+                                            "ob_x {} ob_y {}, sp_x {} sp_y {}",
+                                            obstacle.x,
+                                            sprite_x,
+                                            obstacle.y,
+                                            sprite_y
+                                        );
 
-                                        commands.spawn((transform, obstacle));
+                                        // Spawn obstacle entity
+                                        // Draw where the obstacle entity is
                                         commands
                                             .spawn(SpriteBundle {
                                                 sprite: Sprite {
-                                                    color: Color::rgb(0.25, 0.25, 0.75),
+                                                    color: Color::rgba(0.25, 0.25, 0.75, 0.5),
                                                     custom_size: Some(Vec2::new(w, h)),
                                                     ..Default::default()
                                                 },
-                                                transform: Transform::from_translation(Vec3::new(
-                                                    x, y, 20.,
-                                                )),
+                                                transform: Transform {
+                                                    translation: Vec3 {
+                                                        x: sprite_x,
+                                                        y: sprite_y,
+                                                        z: 30.0,
+                                                    },
+                                                    ..Default::default()
+                                                },
                                                 ..Default::default()
                                             })
+                                            .insert(obstacle)
                                             .insert(Name::new("ObsVis"));
                                     }
                                 }
@@ -274,23 +290,24 @@ pub fn process_loaded_maps(
                                 );
 
                                 let texture_atlas_handle = texture_atlases.add(texture_atlas);
+                                let translation = Vec3::new(
+                                    -((tilemap_size.width as f32 * tile_size.scaled(scale).width)
+                                        / 2.0)
+                                        + ((tile_size.scaled(scale).width) / 2.0),
+                                    -((tilemap_size.height as f32
+                                        * tile_size.scaled(scale).height)
+                                        / 2.0)
+                                        + ((tile_size.scaled(scale).height) / 2.0),
+                                    0.0,
+                                );
+                                log::info!("building translation {:?}", translation);
 
                                 let tilemap_bundle = TileMapBundle {
                                     tilemap,
                                     texture_atlas: texture_atlas_handle,
                                     transform: Transform {
                                         scale: Vec3::splat(3.0),
-                                        translation: Vec3::new(
-                                            -((tilemap_size.width as f32
-                                                * tile_size.scaled(scale).width)
-                                                / 2.0)
-                                                + ((tile_size.scaled(scale).width) / 2.0),
-                                            -((tilemap_size.height as f32
-                                                * tile_size.scaled(scale).height)
-                                                / 2.0)
-                                                + ((tile_size.scaled(scale).height) / 2.0),
-                                            0.0,
-                                        ),
+                                        translation,
                                         ..Default::default()
                                     },
                                     ..Default::default()
@@ -429,37 +446,6 @@ fn build_tiles(
                 }
             };
 
-            // // TODO: Store this collision data in its own sprite
-            // // so we can look it up and determine moveable sprite
-            // // movements
-            // //
-            // // Extract collision objects
-            // let obstacle = if let Some(tile) = layer_tile.get_tile() {
-            //     if let Some(collision) = &tile.collision {
-            //         let object_data = collision.object_data();
-            //         // Just grab the first collision shape if any.
-            //         // TODO: Grab all shapes, and sort out this horrible nesting!
-            //         if let Some(data) = object_data.first() {
-            //             if let tiled::ObjectShape::Rect { width, height } = data.shape {
-            //                 Some(Obstacle {
-            //                     x: mapped_x as f32,
-            //                     y: mapped_y as f32,
-            //                     width,
-            //                     height,
-            //                 })
-            //             } else {
-            //                 None
-            //             }
-            //         } else {
-            //             None
-            //         }
-            //     } else {
-            //         None
-            //     }
-            // } else {
-            //     None
-            // };
-
             if tileset_index != layer_tile.tileset_index() {
                 continue;
             }
@@ -550,7 +536,11 @@ fn build_obstacles(
             for data in object_data.iter() {
                 if let tiled::ObjectShape::Rect { width, height } = data.shape {
                     let obstacle = Obstacle {
+                        // TODO: add on the object.x to this value, as the shapes have an x within
+                        // the tiles space
                         x: mapped_x as f32,
+                        // TODO: add on the object.y to this value, as the shapes have a y within
+                        // the tiles space
                         y: mapped_y as f32,
                         width,
                         height,
@@ -559,6 +549,10 @@ fn build_obstacles(
                 }
             }
         }
+    }
+
+    if obstacles.is_empty() {
+        log::info!("No obstacles found for layer {}", layer_index);
     }
 
     Some(obstacles)
