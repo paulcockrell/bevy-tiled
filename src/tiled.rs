@@ -265,7 +265,7 @@ pub fn process_loaded_maps(
                                                 },
                                                 // Set to visible if you want to see the collision
                                                 // areas for debugging
-                                                visibility: Visibility::Visible,
+                                                visibility: Visibility::Hidden,
                                                 ..Default::default()
                                             })
                                             .insert(Obstacle {
@@ -397,7 +397,18 @@ pub fn process_loaded_maps(
                                                 .insert(Moveable::new())
                                                 .insert(Enemy);
                                         }
+                                        "portals" => {
+                                            commands
+                                                .spawn(sprite_bundle)
+                                                .insert(Name::new(layer_name))
+                                                .insert(Portal::new())
+                                                .insert(Size {
+                                                    width: tile_size.scaled(scale).width,
+                                                    height: tile_size.scaled(scale).height,
+                                                });
+                                        }
                                         _ => {
+                                            log::info!("Unknown layer name {}", layer_name);
                                             commands
                                                 .spawn(sprite_bundle)
                                                 .insert(Name::new(layer_name));
@@ -570,6 +581,17 @@ pub struct Enemy;
 
 #[derive(Component, Debug)]
 pub struct Buildings;
+
+#[derive(Component, Debug)]
+pub struct Portal {
+    pub entered: bool,
+}
+
+impl Portal {
+    fn new() -> Self {
+        Self { entered: false }
+    }
+}
 
 #[derive(Component, Debug)]
 pub struct Unknown;
