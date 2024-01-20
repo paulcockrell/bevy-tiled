@@ -206,10 +206,10 @@ fn check_obstacle(
 }
 
 fn check_portal(
-    player_query: Query<(&Transform, &Size), (With<Player>, Without<Portal>)>,
+    mut player_query: Query<(&mut Transform, &Size), (With<Player>, Without<Portal>)>,
     mut portal_query: Query<(&Transform, &Size, &mut Portal), (With<Portal>, Without<Player>)>,
 ) {
-    let Ok((player_transform, player_size)) = player_query.get_single() else {
+    let Ok((mut player_transform, player_size)) = player_query.get_single_mut() else {
         return;
     };
 
@@ -221,5 +221,9 @@ fn check_portal(
             Vec2::new(portal_size.width, portal_size.height),
         )
         .is_some();
+        if portal.entered {
+            player_transform.translation.y =
+                portal_transform.translation.y - (portal_size.height - (player_size.height * 1.5));
+        }
     }
 }

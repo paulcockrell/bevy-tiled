@@ -340,80 +340,124 @@ pub fn process_loaded_maps(
                                 let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
                                 for object in object_layer.objects() {
-                                    let Some(layer_tile_data) = object.tile_data() else {
-                                        log::info!("No tile data found, skipping");
-                                        continue;
-                                    };
+                                    // A sptite based tile that needs rendering
+                                    if let Some(layer_tile_data) = object.tile_data() {
+                                        let sprite_index = layer_tile_data.id();
+                                        let sprite_x = (object.x * scale)
+                                            - ((tilemap_size.width as f32
+                                                * tile_size.scaled(scale).width)
+                                                / 2.0);
+                                        let sprite_y = -((object.y * scale)
+                                            - ((tilemap_size.height as f32
+                                                * tile_size.scaled(scale).height)
+                                                / 2.0));
+                                        let translation =
+                                            Vec3::new(sprite_x, sprite_y, layer_index as f32);
 
-                                    let sprite_index = layer_tile_data.id();
-                                    let sprite_x = (object.x * scale)
-                                        - ((tilemap_size.width as f32
-                                            * tile_size.scaled(scale).width)
-                                            / 2.0);
-                                    let sprite_y = -((object.y * scale)
-                                        - ((tilemap_size.height as f32
-                                            * tile_size.scaled(scale).height)
-                                            / 2.0));
-                                    let translation =
-                                        Vec3::new(sprite_x, sprite_y, layer_index as f32);
+                                        let sprite = TextureAtlasSprite::new(sprite_index as usize);
 
-                                    let sprite = TextureAtlasSprite::new(sprite_index as usize);
-
-                                    let sprite_bundle = SpriteSheetBundle {
-                                        texture_atlas: texture_atlas_handle.clone(),
-                                        transform: Transform {
-                                            scale: Vec3::splat(scale),
-                                            translation,
+                                        let sprite_bundle = SpriteSheetBundle {
+                                            texture_atlas: texture_atlas_handle.clone(),
+                                            transform: Transform {
+                                                scale: Vec3::splat(scale),
+                                                translation,
+                                                ..Default::default()
+                                            },
+                                            sprite,
                                             ..Default::default()
-                                        },
-                                        sprite,
-                                        ..Default::default()
-                                    };
+                                        };
 
-                                    let layer_name = layer.name.clone();
-                                    match layer_name.as_str() {
-                                        "player" => {
+                                        let layer_name = layer.name.clone();
+                                        match layer_name.as_str() {
+                                            "player" => {
+                                                commands
+                                                    .spawn(sprite_bundle)
+                                                    .insert(Name::new(layer_name))
+                                                    .insert(Moveable::new())
+                                                    .insert(Player)
+                                                    .insert(Size {
+                                                        width: tile_size.scaled(scale).width,
+                                                        height: tile_size.scaled(scale).height,
+                                                    });
+                                            }
+                                            "princess" => {
+                                                commands
+                                                    .spawn(sprite_bundle)
+                                                    .insert(Name::new(layer_name))
+                                                    .insert(Moveable::new())
+                                                    .insert(Princess);
+                                            }
+                                            "enemy" => {
+                                                commands
+                                                    .spawn(sprite_bundle)
+                                                    .insert(Name::new(layer_name))
+                                                    .insert(Moveable::new())
+                                                    .insert(Enemy);
+                                            }
+                                            _ => {
+                                                log::info!("Unknown layer name {}", layer_name);
+                                                commands
+                                                    .spawn(sprite_bundle)
+                                                    .insert(Name::new(layer_name));
+                                            }
+                                        };
+                                    } else {
+                                        // A none sprite object with a shape
+                                        // data: ObjectData { id: 31, tile: None, name: "Portal
+                                        // Tunnel", user_type: "PortalTunnel", x: 464.0, y: 144.0,
+                                        // rotation: 0.0, visible: true, shape: Rect { width: 16.0,
+                                        // height: 64.0 }, properties: {} } }
+                                        // We only care about recangle objects
+                                        if object.user_type == "PortalTunnel" {
+                                            let tiled::ObjectShape::Rect { width, height } =
+                                                object.shape
+                                            else {
+                                                log::info!("Found non rectangle, skipping");
+                                                continue;
+                                            };
+
+                                            let object_x = (object.x * scale)
+                                                - ((tilemap_size.width as f32
+                                                    * tile_size.scaled(scale).width)
+                                                    / 2.0)
+                                                + (width * 1.5); // this is because the x is in the
+                                                                 // center of the rectangle, so we need to adjust for
+                                                                 // that
+                                            let object_y = -((object.y * scale)
+                                                - ((tilemap_size.height as f32
+                                                    * tile_size.scaled(scale).height)
+                                                    / 2.0))
+                                                - (height * 1.5); // this is because the y is in
+                                                                  // the center of the rectangle, so we need to adjust
+                                                                  // for that
+                                            let translation =
+                                                Vec3::new(object_x, object_y, layer_index as f32);
+
                                             commands
-                                                .spawn(sprite_bundle)
-                                                .insert(Name::new(layer_name))
-                                                .insert(Moveable::new())
-                                                .insert(Player)
-                                                .insert(Size {
-                                                    width: tile_size.scaled(scale).width,
-                                                    height: tile_size.scaled(scale).height,
-                                                });
-                                        }
-                                        "princess" => {
-                                            commands
-                                                .spawn(sprite_bundle)
-                                                .insert(Name::new(layer_name))
-                                                .insert(Moveable::new())
-                                                .insert(Princess);
-                                        }
-                                        "enemy" => {
-                                            commands
-                                                .spawn(sprite_bundle)
-                                                .insert(Name::new(layer_name))
-                                                .insert(Moveable::new())
-                                                .insert(Enemy);
-                                        }
-                                        "portals" => {
-                                            commands
-                                                .spawn(sprite_bundle)
-                                                .insert(Name::new(layer_name))
+                                                .spawn(SpriteBundle {
+                                                    sprite: Sprite {
+                                                        color: Color::rgba(1., 1., 1., 0.5),
+                                                        custom_size: Some(Vec2::new(width, height)),
+                                                        ..Default::default()
+                                                    },
+                                                    transform: Transform {
+                                                        scale: Vec3::splat(scale),
+                                                        translation,
+                                                        ..Default::default()
+                                                    },
+                                                    // Set to visible if you want to see the portal
+                                                    // areas for debugging
+                                                    visibility: Visibility::Hidden,
+                                                    ..Default::default()
+                                                })
                                                 .insert(Portal::new())
                                                 .insert(Size {
-                                                    width: tile_size.scaled(scale).width,
-                                                    height: tile_size.scaled(scale).height,
-                                                });
+                                                    width: width * scale,
+                                                    height: height * scale,
+                                                })
+                                                .insert(Name::new(object.user_type.clone()));
                                         }
-                                        _ => {
-                                            log::info!("Unknown layer name {}", layer_name);
-                                            commands
-                                                .spawn(sprite_bundle)
-                                                .insert(Name::new(layer_name));
-                                        }
-                                    };
+                                    }
                                 }
                             }
                             _ => (),
