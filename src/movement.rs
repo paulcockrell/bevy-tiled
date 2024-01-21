@@ -3,7 +3,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-use crate::tiled::{Obstacle, Player, Size};
+use crate::tiled::{Obstacle, Player, Portal, Size};
 
 const PLAYER_SPEED: f32 = 100.0;
 
@@ -42,6 +42,7 @@ impl Plugin for MovementPlugin {
                 input_system_touch,
                 update_player_position,
                 check_obstacle,
+                check_portal,
             )
                 .chain(),
         );
@@ -158,45 +159,78 @@ fn check_obstacle(
             if matches!(player_moveable.direction, Direction::Left)
                 && matches!(collision, Collision::Right)
             {
-                player_moveable.speed = 0.0;
-                player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.x = obstacle_transform.translation.x + obstacle.width;
+                player_moveable.speed = 0.0;
             };
 
             // Moving right, collided with left side of wall
             if matches!(player_moveable.direction, Direction::Right)
                 && matches!(collision, Collision::Left)
             {
-                player_moveable.speed = 0.0;
-                player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.x = obstacle_transform.translation.x - obstacle.width;
+                player_moveable.speed = 0.0;
             };
 
             // Moving up, collided with bottom side of wall
             if matches!(player_moveable.direction, Direction::Up)
                 && matches!(collision, Collision::Bottom)
             {
-                player_moveable.speed = 0.0;
-                player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.y = obstacle_transform.translation.y - obstacle.height;
+                player_moveable.speed = 0.0;
             };
 
             // Moving down, collided with top side of wall
             if matches!(player_moveable.direction, Direction::Down)
                 && matches!(collision, Collision::Top)
             {
-                player_moveable.speed = 0.0;
-                player_moveable.direction = Direction::Stopped;
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.y = obstacle_transform.translation.y + obstacle.height;
+                player_moveable.speed = 0.0;
             };
+        }
+    }
+}
+
+fn check_portal(
+    mut player_query: Query<(&mut Transform, &Size, &Moveable), (With<Player>, Without<Portal>)>,
+    mut portal_query: Query<(&Transform, &Size, &mut Portal), (With<Portal>, Without<Player>)>,
+) {
+    let Ok((mut player_transform, player_size, player_moveable)) = player_query.get_single_mut()
+    else {
+        return;
+    };
+
+    for (portal_transform, portal_size, mut portal) in portal_query.iter_mut() {
+        if let Some(collision) = collide(
+            player_transform.translation,
+            Vec2::new(player_size.width, player_size.height),
+            portal_transform.translation,
+            Vec2::new(portal_size.width, portal_size.height),
+        ) {
+            match collision {
+                Collision::Top => {
+                    if matches!(player_moveable.direction, Direction::Down) {
+                        portal.entered = true;
+                        player_transform.translation.y = portal_transform.translation.y
+                            - (portal_size.height - (player_size.height * 1.5));
+                    }
+                }
+                Collision::Bottom => {
+                    if matches!(player_moveable.direction, Direction::Up) {
+                        portal.entered = true;
+                        player_transform.translation.y = portal_transform.translation.y
+                            + (portal_size.height - (player_size.height * 1.5));
+                    }
+                }
+                _ => (),
+            }
         }
     }
 }

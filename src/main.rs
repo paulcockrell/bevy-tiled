@@ -7,8 +7,8 @@ use movement::MovementPlugin;
 mod movement;
 mod tiled;
 
-pub const VIEW_WIDTH: f32 = 1280.0;
-pub const VIEW_HEIGHT: f32 = 720.0;
+pub const VIEW_WIDTH: f32 = 1600.0;
+pub const VIEW_HEIGHT: f32 = 800.0;
 
 fn main() {
     App::new()
