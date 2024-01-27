@@ -285,14 +285,13 @@ pub fn process_loaded_maps(
                                 let texture_atlas_handle = texture_atlases.add(texture_atlas);
                                 let map_origin =
                                     Point::get_map_origin(&tilemap_size, &tile_size, SCALE);
-                                let translation = Vec3::new(map_origin.x, map_origin.y, 0.0);
 
                                 let tilemap_bundle = TileMapBundle {
                                     tilemap,
                                     texture_atlas: texture_atlas_handle,
                                     transform: Transform {
                                         scale: Vec3::splat(SCALE),
-                                        translation,
+                                        translation: Vec3::new(map_origin.x, map_origin.y, 0.0),
                                         ..Default::default()
                                     },
                                     ..Default::default()
@@ -319,16 +318,16 @@ pub fn process_loaded_maps(
                                     // A sptite based tile that needs rendering
                                     if let Some(layer_tile_data) = object.tile_data() {
                                         let sprite_index = layer_tile_data.id();
-                                        let sprite_x = (object.x * SCALE)
-                                            - ((tilemap_size.width as f32
-                                                * tile_size.scaled(SCALE).width)
-                                                / 2.0);
-                                        let sprite_y = -((object.y * SCALE)
-                                            - ((tilemap_size.height as f32
-                                                * tile_size.scaled(SCALE).height)
-                                                / 2.0));
-                                        let translation =
-                                            Vec3::new(sprite_x, sprite_y, layer_index as f32);
+
+                                        let object_point = Point::from_tiled_object(
+                                            &tilemap_size,
+                                            &tile_size,
+                                            SCALE,
+                                            object.x,
+                                            object.y,
+                                            None,
+                                            None,
+                                        );
 
                                         let sprite = TextureAtlasSprite::new(sprite_index as usize);
 
@@ -336,7 +335,11 @@ pub fn process_loaded_maps(
                                             texture_atlas: texture_atlas_handle.clone(),
                                             transform: Transform {
                                                 scale: Vec3::splat(SCALE),
-                                                translation,
+                                                translation: Vec3::new(
+                                                    object_point.x,
+                                                    object_point.y,
+                                                    layer_index as f32,
+                                                ),
                                                 ..Default::default()
                                             },
                                             sprite,
@@ -399,8 +402,8 @@ pub fn process_loaded_maps(
                                                 SCALE,
                                                 object.x,
                                                 object.y,
-                                                width,
-                                                height,
+                                                Some(width),
+                                                Some(height),
                                             );
 
                                             let translation = Vec3::new(
@@ -678,17 +681,22 @@ impl Point {
         scale: f32,
         x: f32,
         y: f32,
-        width: f32,
-        height: f32,
+        width: Option<f32>,
+        height: Option<f32>,
     ) -> Self {
-        let x = (x * scale)
-            - ((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0)
-            // this is because the x is in the center of the rectangle, so we need to adjust for that
-            + (width * 1.5);
-        let y = -((y * scale)
-            - ((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0))
-            // this is because the y is in the center of the rectangle, so we need to adjust for that
-            - (height * 1.5);
+        let mut x =
+            (x * scale) - ((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0);
+        if let Some(w) = width {
+            // this is because shape objects have the x in the center, where as regular objects are left, so we need to adjust for that
+            x += w * 1.5;
+        }
+
+        let mut y =
+            -((y * scale) - ((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0));
+        if let Some(h) = height {
+            // this is because shape objects have the y in the center, where as regular objects are top, so we need to adjust for that
+            y -= h * 1.5;
+        }
 
         Self { x, y }
     }
