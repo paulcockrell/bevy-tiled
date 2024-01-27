@@ -4,7 +4,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-use crate::tiled::{ObstacleType, Player, Portal, Size};
+use crate::tiled::{ObstacleType, Player, Portal, TilemapTileSize};
 
 const PLAYER_SPEED: f32 = 100.0;
 
@@ -140,8 +140,8 @@ fn input_system_touch(
 }
 
 fn check_obstacle(
-    mut player_query: Query<(&mut Transform, &mut Moveable, &Size), With<Player>>,
-    obstacle_query: Query<(&Transform, &Size, &ObstacleType), Without<Player>>,
+    mut player_query: Query<(&mut Transform, &mut Moveable, &TilemapTileSize), With<Player>>,
+    obstacle_query: Query<(&Transform, &TilemapTileSize, &ObstacleType), Without<Player>>,
 ) {
     let Ok((mut player_transform, mut player_moveable, player_size)) =
         player_query.get_single_mut()
@@ -157,6 +157,7 @@ fn check_obstacle(
             Vec2::new(obstacle_size.width, obstacle_size.height),
         ) {
             log::info!("Bumped into {:?}", obstacle_type);
+
             // Moving left, collided with right side of wall
             if matches!(player_moveable.direction, Direction::Left)
                 && matches!(collision, Collision::Right)
@@ -205,8 +206,14 @@ fn check_obstacle(
 }
 
 fn check_portal(
-    mut player_query: Query<(&mut Transform, &Size, &Moveable), (With<Player>, Without<Portal>)>,
-    mut portal_query: Query<(&Transform, &Size, &mut Portal), (With<Portal>, Without<Player>)>,
+    mut player_query: Query<
+        (&mut Transform, &TilemapTileSize, &Moveable),
+        (With<Player>, Without<Portal>),
+    >,
+    mut portal_query: Query<
+        (&Transform, &TilemapTileSize, &mut Portal),
+        (With<Portal>, Without<Player>),
+    >,
 ) {
     let Ok((mut player_transform, player_size, player_moveable)) = player_query.get_single_mut()
     else {

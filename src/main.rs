@@ -3,7 +3,7 @@ use bevy::{prelude::*, window::WindowResolution};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_simple_tilemap::prelude::*;
 use movement::MovementPlugin;
-use tiled::{ObstacleType, Size};
+use tiled::{ObstacleType, TilemapTileSize};
 
 mod movement;
 mod tiled;
@@ -32,7 +32,7 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         // Debugging
         .register_type::<ObstacleType>()
-        .register_type::<Size>()
+        .register_type::<TilemapTileSize>()
         .run();
 }
 

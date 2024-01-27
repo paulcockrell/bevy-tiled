@@ -36,7 +36,7 @@ pub struct TilemapSize {
 }
 
 /// TimemapTileSize contains the width and height of a tile
-#[derive(Component, Copy, Clone, Debug)]
+#[derive(Reflect, Component, Default, Debug, InspectorOptions, Copy, Clone)]
 pub struct TilemapTileSize {
     pub width: f32,
     pub height: f32,
@@ -240,7 +240,7 @@ pub fn process_loaded_maps(
                                     &tile_layer,
                                     layer_index,
                                 ) {
-                                    for (point, size, obstacle_type) in obstacles {
+                                    for (point, obstacle_type) in obstacles {
                                         commands
                                             // The sprite bundle just renders a transparent colored
                                             // rectangle showing where this non sprite object exists
@@ -249,8 +249,8 @@ pub fn process_loaded_maps(
                                                 sprite: Sprite {
                                                     color: Color::rgba(0.25, 0.25, 0.75, 0.5),
                                                     custom_size: Some(Vec2::new(
-                                                        size.width,
-                                                        size.height,
+                                                        tile_size.scaled(SCALE).width,
+                                                        tile_size.scaled(SCALE).height,
                                                     )),
                                                     ..Default::default()
                                                 },
@@ -264,10 +264,10 @@ pub fn process_loaded_maps(
                                                 },
                                                 // Set to visible if you want to see the collision
                                                 // areas for debugging
-                                                visibility: Visibility::Hidden,
+                                                visibility: Visibility::Visible,
                                                 ..Default::default()
                                             })
-                                            .insert(size)
+                                            .insert(tile_size.scaled(SCALE))
                                             .insert(obstacle_type);
                                     }
                                 }
@@ -304,22 +304,10 @@ pub fn process_loaded_maps(
                                     ..Default::default()
                                 };
 
-                                let layer_name = layer.name.clone();
-
-                                match layer_name.as_str() {
-                                    "buildings" => {
-                                        commands
-                                            .spawn(tilemap_bundle)
-                                            .insert(Name::new(layer_name))
-                                            .insert(tile_size.scaled(SCALE))
-                                            .insert(Buildings);
-                                    }
-                                    _ => {
-                                        commands
-                                            .spawn(tilemap_bundle)
-                                            .insert(Name::new(layer_name));
-                                    }
-                                };
+                                commands
+                                    .spawn(tilemap_bundle)
+                                    .insert(Name::new(layer.name.clone()))
+                                    .insert(tile_size.scaled(SCALE));
                             }
                             tiled::LayerType::Objects(object_layer) => {
                                 let texture_atlas = TextureAtlas::from_grid(
@@ -370,30 +358,30 @@ pub fn process_loaded_maps(
                                                     .insert(Moveable::new())
                                                     .insert(Player)
                                                     .insert(Inventory::new())
-                                                    .insert(Size {
-                                                        width: tile_size.scaled(SCALE).width,
-                                                        height: tile_size.scaled(SCALE).height,
-                                                    });
+                                                    .insert(tile_size.scaled(SCALE));
                                             }
                                             "princess" => {
                                                 commands
                                                     .spawn(sprite_bundle)
                                                     .insert(Name::new(layer_name))
                                                     .insert(Moveable::new())
-                                                    .insert(Princess);
+                                                    .insert(Princess)
+                                                    .insert(tile_size.scaled(SCALE));
                                             }
                                             "enemy" => {
                                                 commands
                                                     .spawn(sprite_bundle)
                                                     .insert(Name::new(layer_name))
                                                     .insert(Moveable::new())
-                                                    .insert(Enemy);
+                                                    .insert(Enemy)
+                                                    .insert(tile_size.scaled(SCALE));
                                             }
                                             _ => {
                                                 log::info!("Unknown layer name {}", layer_name);
                                                 commands
                                                     .spawn(sprite_bundle)
-                                                    .insert(Name::new(layer_name));
+                                                    .insert(Name::new(layer_name))
+                                                    .insert(tile_size.scaled(SCALE));
                                             }
                                         };
                                     } else {
@@ -428,6 +416,9 @@ pub fn process_loaded_maps(
                                             let translation =
                                                 Vec3::new(object_x, object_y, layer_index as f32);
 
+                                            let portal_size =
+                                                TilemapTileSize { width, height }.scaled(SCALE);
+
                                             commands
                                                 .spawn(SpriteBundle {
                                                     sprite: Sprite {
@@ -442,14 +433,11 @@ pub fn process_loaded_maps(
                                                     },
                                                     // Set to visible if you want to see the portal
                                                     // areas for debugging
-                                                    visibility: Visibility::Hidden,
+                                                    visibility: Visibility::Visible,
                                                     ..Default::default()
                                                 })
                                                 .insert(Portal::new())
-                                                .insert(Size {
-                                                    width: width * SCALE,
-                                                    height: height * SCALE,
-                                                })
+                                                .insert(portal_size)
                                                 .insert(Name::new(object.user_type.clone()));
                                         }
                                     }
@@ -537,7 +525,7 @@ fn build_obstacles(
     tile_size: &TilemapTileSize,
     tile_layer: &TileLayer,
     layer_index: usize,
-) -> Option<Vec<(Point, Size, ObstacleType)>> {
+) -> Option<Vec<(Point, ObstacleType)>> {
     log::info!("Building obstacles for layer {}", layer_index);
 
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
@@ -548,7 +536,7 @@ fn build_obstacles(
         return None;
     };
 
-    let mut obstacles: Vec<(Point, Size, ObstacleType)> = vec![];
+    let mut obstacles: Vec<(Point, ObstacleType)> = vec![];
 
     for x in 0..tilemap_size.width {
         for y in 0..tilemap_size.height {
@@ -579,7 +567,11 @@ fn build_obstacles(
             let object_data = collision.object_data();
 
             for data in object_data.iter() {
-                if let tiled::ObjectShape::Rect { width, height } = data.shape {
+                if let tiled::ObjectShape::Rect {
+                    width: _,
+                    height: _,
+                } = data.shape
+                {
                     let point = Point::from_collision_object(
                         tilemap_size,
                         tile_size,
@@ -588,14 +580,9 @@ fn build_obstacles(
                         mapped_y,
                     );
 
-                    let size = Size {
-                        width: width * SCALE,
-                        height: height * SCALE,
-                    };
-
                     let obstacle_type = tile_user_class_to_component(&tile);
 
-                    obstacles.push((point, size, obstacle_type));
+                    obstacles.push((point, obstacle_type));
                 }
             }
         }
@@ -645,12 +632,6 @@ impl Portal {
     fn new() -> Self {
         Self { entered: false }
     }
-}
-
-#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
-pub struct Size {
-    pub width: f32,
-    pub height: f32,
 }
 
 #[derive(Reflect, Component, Default, Debug, InspectorOptions)]
