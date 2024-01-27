@@ -232,15 +232,15 @@ pub fn process_loaded_maps(
                                 let mut tilemap = TileMap::default();
                                 tilemap.set_tiles(tiles);
 
-                                // Spawn obstacles, this could do with putting somewhere nice, or
+                                // Spawn collideables, this could do with putting somewhere nice, or
                                 // merging into the build_tiles...
-                                if let Some(obstacles) = build_obstacles(
+                                if let Some(collideables) = build_collideables(
                                     &tilemap_size,
                                     &tile_size,
                                     &tile_layer,
                                     layer_index,
                                 ) {
-                                    for (point, obstacle_type) in obstacles {
+                                    for (collision_point, tile_point) in collideables {
                                         commands
                                             // The sprite bundle just renders a transparent colored
                                             // rectangle showing where this non sprite object exists
@@ -256,8 +256,8 @@ pub fn process_loaded_maps(
                                                 },
                                                 transform: Transform {
                                                     translation: Vec3 {
-                                                        x: point.x,
-                                                        y: point.y,
+                                                        x: collision_point.x,
+                                                        y: collision_point.y,
                                                         z: 30.0,
                                                     },
                                                     ..Default::default()
@@ -268,7 +268,8 @@ pub fn process_loaded_maps(
                                                 ..Default::default()
                                             })
                                             .insert(tile_size.scaled(SCALE))
-                                            .insert(obstacle_type);
+                                            .insert(tile_point)
+                                            .insert(TiledCollideable);
                                     }
                                 }
 
@@ -282,16 +283,9 @@ pub fn process_loaded_maps(
                                 );
 
                                 let texture_atlas_handle = texture_atlases.add(texture_atlas);
-                                let translation = Vec3::new(
-                                    -((tilemap_size.width as f32 * tile_size.scaled(SCALE).width)
-                                        / 2.0)
-                                        + ((tile_size.scaled(SCALE).width) / 2.0),
-                                    -((tilemap_size.height as f32
-                                        * tile_size.scaled(SCALE).height)
-                                        / 2.0)
-                                        + ((tile_size.scaled(SCALE).height) / 2.0),
-                                    0.0,
-                                );
+                                let map_origin =
+                                    Point::get_map_origin(&tilemap_size, &tile_size, SCALE);
+                                let translation = Vec3::new(map_origin.x, map_origin.y, 0.0);
 
                                 let tilemap_bundle = TileMapBundle {
                                     tilemap,
@@ -399,24 +393,23 @@ pub fn process_loaded_maps(
                                                 continue;
                                             };
 
-                                            let object_x = (object.x * SCALE)
-                                                - ((tilemap_size.width as f32
-                                                    * tile_size.scaled(SCALE).width)
-                                                    / 2.0)
-                                                + (width * 1.5); // this is because the x is in the
-                                                                 // center of the rectangle, so we need to adjust for
-                                                                 // that
-                                            let object_y = -((object.y * SCALE)
-                                                - ((tilemap_size.height as f32
-                                                    * tile_size.scaled(SCALE).height)
-                                                    / 2.0))
-                                                - (height * 1.5); // this is because the y is in
-                                                                  // the center of the rectangle, so we need to adjust
-                                                                  // for that
-                                            let translation =
-                                                Vec3::new(object_x, object_y, layer_index as f32);
+                                            let object_point = Point::from_tiled_object(
+                                                &tilemap_size,
+                                                &tile_size,
+                                                SCALE,
+                                                object.x,
+                                                object.y,
+                                                width,
+                                                height,
+                                            );
 
-                                            let portal_size =
+                                            let translation = Vec3::new(
+                                                object_point.x,
+                                                object_point.y,
+                                                layer_index as f32,
+                                            );
+
+                                            let object_size =
                                                 TilemapTileSize { width, height }.scaled(SCALE);
 
                                             commands
@@ -436,8 +429,8 @@ pub fn process_loaded_maps(
                                                     visibility: Visibility::Visible,
                                                     ..Default::default()
                                                 })
-                                                .insert(Portal::new())
-                                                .insert(portal_size)
+                                                .insert(TiledObject)
+                                                .insert(object_size)
                                                 .insert(Name::new(object.user_type.clone()));
                                         }
                                     }
@@ -472,13 +465,9 @@ fn build_tiles(
 
     for x in 0..tilemap_size.width {
         for y in 0..tilemap_size.height {
-            // Transform TMX coords into bevy coords.
-            let mapped_y = tilemap_size.height - 1 - y;
+            let point = Point::from_tiled_tile(tilemap_size, x, y);
 
-            let mapped_x = x as i32;
-            let mapped_y = mapped_y as i32;
-
-            let layer_tile = match layer_data.get_tile(mapped_x, mapped_y) {
+            let layer_tile = match layer_data.get_tile(point.x as i32, point.y as i32) {
                 Some(t) => t,
                 None => {
                     continue;
@@ -489,7 +478,7 @@ fn build_tiles(
                 continue;
             }
 
-            let layer_tile_data = match layer_data.get_tile_data(mapped_x, mapped_y) {
+            let layer_tile_data = match layer_data.get_tile_data(point.x as i32, point.y as i32) {
                 Some(d) => d,
                 None => {
                     continue;
@@ -520,13 +509,13 @@ fn build_tiles(
     Some(tiles)
 }
 
-fn build_obstacles(
+fn build_collideables(
     tilemap_size: &TilemapSize,
     tile_size: &TilemapTileSize,
     tile_layer: &TileLayer,
     layer_index: usize,
-) -> Option<Vec<(Point, ObstacleType)>> {
-    log::info!("Building obstacles for layer {}", layer_index);
+) -> Option<Vec<(Point, Point)>> {
+    log::info!("Building collideables for layer {}", layer_index);
 
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
         log::info!(
@@ -536,16 +525,13 @@ fn build_obstacles(
         return None;
     };
 
-    let mut obstacles: Vec<(Point, ObstacleType)> = vec![];
+    let mut collideables: Vec<(Point, Point)> = vec![];
 
     for x in 0..tilemap_size.width {
         for y in 0..tilemap_size.height {
-            // Transform TMX coords into bevy coords.
-            let mapped_x = x as i32;
-            let mapped_y = tilemap_size.height - 1 - y;
-            let mapped_y = mapped_y as i32;
+            let tile_point = Point::from_tiled_tile(tilemap_size, x, y);
 
-            let layer_tile = match layer_data.get_tile(mapped_x, mapped_y) {
+            let layer_tile = match layer_data.get_tile(tile_point.x as i32, tile_point.y as i32) {
                 Some(t) => t,
                 None => {
                     continue;
@@ -567,32 +553,32 @@ fn build_obstacles(
             let object_data = collision.object_data();
 
             for data in object_data.iter() {
+                // TODO: The collision dimensions may be smaller than the tile size, so we need to
+                // use this when building collision shapes
                 if let tiled::ObjectShape::Rect {
                     width: _,
                     height: _,
                 } = data.shape
                 {
-                    let point = Point::from_collision_object(
+                    let collision_point = Point::from_tiled_collision(
                         tilemap_size,
                         tile_size,
                         SCALE,
-                        mapped_x,
-                        mapped_y,
+                        tile_point.x as i32,
+                        tile_point.y as i32,
                     );
 
-                    let obstacle_type = tile_user_class_to_component(&tile);
-
-                    obstacles.push((point, obstacle_type));
+                    collideables.push((collision_point, tile_point));
                 }
             }
         }
     }
 
-    if obstacles.is_empty() {
-        log::info!("No obstacles found for layer {}", layer_index);
+    if collideables.is_empty() {
+        log::info!("No collideables found for layer {}", layer_index);
     }
 
-    Some(obstacles)
+    Some(collideables)
 }
 
 fn tile_user_class_to_component(tile: &tiled::Tile) -> ObstacleType {
@@ -634,14 +620,14 @@ impl Portal {
     }
 }
 
-#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
+#[derive(Reflect, Component, Copy, Clone, Default, Debug, InspectorOptions)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
 impl Point {
-    pub fn from_collision_object(
+    pub fn from_tiled_collision(
         tilemap_size: &TilemapSize,
         tile_size: &TilemapTileSize,
         scale: f32,
@@ -655,6 +641,54 @@ impl Point {
         let y = -((y as f32 * tile_size.scaled(scale).height)
             - ((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0))
             - (tile_size.scaled(scale).height / 2.0);
+
+        Self { x, y }
+    }
+
+    /// Calculate the origin point of the map for placing in the center of the screen
+    pub fn get_map_origin(
+        tilemap_size: &TilemapSize,
+        tile_size: &TilemapTileSize,
+        scale: f32,
+    ) -> Self {
+        let x = -((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0)
+            + ((tile_size.scaled(scale).width) / 2.0);
+        let y = -((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0)
+            + ((tile_size.scaled(scale).height) / 2.0);
+
+        Self { x, y }
+    }
+
+    /// Transform TMX tile coords into bevy coords.
+    pub fn from_tiled_tile(tilemap_size: &TilemapSize, x: usize, y: usize) -> Self {
+        let mapped_x = x as f32;
+        let mapped_y = tilemap_size.height - 1 - y;
+        let mapped_y = mapped_y as f32;
+
+        Self {
+            x: mapped_x,
+            y: mapped_y,
+        }
+    }
+
+    /// Transform TMX object coords into bevy coords.
+    pub fn from_tiled_object(
+        tilemap_size: &TilemapSize,
+        tile_size: &TilemapTileSize,
+        scale: f32,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    ) -> Self {
+        let x = (x * scale)
+            - ((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0)
+            // this is because the x is in the center of the rectangle, so we need to adjust for that
+            + (width * 1.5);
+        let y = -((y * scale)
+            - ((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0))
+            // this is because the y is in the center of the rectangle, so we need to adjust for that
+            - (height * 1.5);
 
         Self { x, y }
     }
@@ -687,3 +721,12 @@ impl Inventory {
         }
     }
 }
+
+#[derive(Component, Debug)]
+pub struct TiledCollideable;
+
+#[derive(Component, Debug)]
+pub struct TiledObject;
+
+// TODO:
+// need only the concept of tiled_tile, tiled_object and tiled_collision
