@@ -3,7 +3,7 @@ use bevy::{prelude::*, window::WindowResolution};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_simple_tilemap::prelude::*;
 use movement::MovementPlugin;
-use tiled::ObstacleType;
+use tiled::{Obstacle, ObstacleType};
 
 mod movement;
 mod tiled;
@@ -31,6 +31,8 @@ fn main() {
         .add_systems(Startup, setup)
         .add_plugins(WorldInspectorPlugin::new())
         // Debugging
+        .register_type::<Obstacle>()
+        .register_type::<ObstacleType>()
         .run();
 }
 

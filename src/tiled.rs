@@ -19,6 +19,7 @@ use bevy::{
     utils::BoxedFuture,
 };
 
+use bevy_inspector_egui::prelude::*;
 use bevy_simple_tilemap::{prelude::*, TileFlags};
 use thiserror::Error;
 use tiled::TileLayer;
@@ -237,7 +238,7 @@ pub fn process_loaded_maps(
                                 if let Some(obstacles) =
                                     build_obstacles(&tilemap_size, &tile_layer, layer_index)
                                 {
-                                    for obstacle in obstacles {
+                                    for (obstacle, obstacle_type) in obstacles {
                                         let w = obstacle.width * scale;
                                         let h = obstacle.height * scale;
                                         let sprite_x = (obstacle.x * tile_size.scaled(scale).width)
@@ -277,9 +278,8 @@ pub fn process_loaded_maps(
                                                 y: sprite_y,
                                                 width: w,
                                                 height: h,
-                                                item: obstacle.item,
                                             })
-                                            .insert(Name::new("Obstacle"));
+                                            .insert(obstacle_type);
                                     }
                                 }
 
@@ -545,13 +545,12 @@ fn build_tiles(
 
 // The x, y should be a Point component
 // the width, height should be a Size component
-#[derive(Component, Debug)]
+#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
 pub struct Obstacle {
     pub x: f32,
     pub y: f32,
     pub width: f32,
     pub height: f32,
-    pub item: ObstacleType,
 }
 
 impl Obstacle {
@@ -561,7 +560,6 @@ impl Obstacle {
             y: 0.,
             width: 0.,
             height: 0.,
-            item: ObstacleType::None,
         }
     }
 }
@@ -570,7 +568,7 @@ fn build_obstacles(
     tilemap_size: &TilemapSize,
     tile_layer: &TileLayer,
     layer_index: usize,
-) -> Option<Vec<Obstacle>> {
+) -> Option<Vec<(Obstacle, ObstacleType)>> {
     log::info!("Building obstacles for layer {}", layer_index);
 
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
@@ -581,7 +579,7 @@ fn build_obstacles(
         return None;
     };
 
-    let mut obstacles: Vec<Obstacle> = vec![];
+    let mut obstacles: Vec<(Obstacle, ObstacleType)> = vec![];
 
     for x in 0..tilemap_size.width {
         for y in 0..tilemap_size.height {
@@ -612,25 +610,18 @@ fn build_obstacles(
             let object_data = collision.object_data();
 
             for data in object_data.iter() {
-                let mut obstacle = Obstacle::new();
                 if let tiled::ObjectShape::Rect { width, height } = data.shape {
-                    let obstacle_type = match &tile.user_type {
-                        Some(obstacle_type) => match obstacle_type.as_str() {
-                            "Chest" => ObstacleType::Chest,
-                            "Potion" => ObstacleType::Potion,
-                            _ => ObstacleType::None,
-                        },
-                        None => ObstacleType::None,
+                    let obstacle_type = tile_user_class_to_component(&tile);
+                    let obstacle = Obstacle {
+                        // TODO: add on the object.x to this value, as the collision shapes have an x within
+                        x: mapped_x as f32,
+                        // TODO: add on the object.y to this value, as the collision shapes have a y within
+                        y: mapped_y as f32,
+                        width,
+                        height,
                     };
-                    obstacle.item = obstacle_type;
-                    // TODO: add on the object.x to this value, as the shapes have an x within
-                    obstacle.x = mapped_x as f32;
-                    // TODO: add on the object.y to this value, as the shapes have a y within
-                    obstacle.y = mapped_y as f32;
-                    obstacle.width = width;
-                    obstacle.height = height;
 
-                    obstacles.push(obstacle);
+                    obstacles.push((obstacle, obstacle_type));
                 }
             }
         }
@@ -648,6 +639,11 @@ fn tile_user_class_to_component(tile: &tiled::Tile) -> ObstacleType {
         Some(obstacle_type) => match obstacle_type.as_str() {
             "Chest" => ObstacleType::Chest,
             "Potion" => ObstacleType::Potion,
+            "Door" => ObstacleType::Door,
+            "Tombstone" => ObstacleType::Tombstone,
+            "Grave" => ObstacleType::Grave,
+            "Fountain" => ObstacleType::Fountain,
+            "Wall" => ObstacleType::Wall,
             _ => ObstacleType::None,
         },
         None => ObstacleType::None,
@@ -686,11 +682,17 @@ pub struct Size {
     pub height: f32,
 }
 
-#[derive(Component, Debug)]
+#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
 pub enum ObstacleType {
+    #[default]
     None,
     Chest,
     Potion,
+    Wall,
+    Door,
+    Tombstone,
+    Grave,
+    Fountain,
 }
 
 #[derive(Component, Debug)]
