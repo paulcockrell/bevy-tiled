@@ -221,7 +221,11 @@ pub fn process_loaded_maps(
                                     tileset_index,
                                     layer_index,
                                 ) else {
-                                    log::info!("No tiles for layer {}", layer_index);
+                                    log::info!(
+                                        "No tiles for layer {} [{}]",
+                                        layer.name.clone(),
+                                        layer_index,
+                                    );
                                     continue;
                                 };
 
@@ -273,6 +277,7 @@ pub fn process_loaded_maps(
                                                 y: sprite_y,
                                                 width: w,
                                                 height: h,
+                                                item: obstacle.item,
                                             })
                                             .insert(Name::new("Obstacle"));
                                     }
@@ -375,6 +380,7 @@ pub fn process_loaded_maps(
                                                     .insert(Name::new(layer_name))
                                                     .insert(Moveable::new())
                                                     .insert(Player)
+                                                    .insert(Inventory::new())
                                                     .insert(Size {
                                                         width: tile_size.scaled(scale).width,
                                                         height: tile_size.scaled(scale).height,
@@ -537,12 +543,27 @@ fn build_tiles(
     Some(tiles)
 }
 
+// The x, y should be a Point component
+// the width, height should be a Size component
 #[derive(Component, Debug)]
 pub struct Obstacle {
     pub x: f32,
     pub y: f32,
     pub width: f32,
     pub height: f32,
+    pub item: ObstacleType,
+}
+
+impl Obstacle {
+    pub fn new() -> Self {
+        Self {
+            x: 0.,
+            y: 0.,
+            width: 0.,
+            height: 0.,
+            item: ObstacleType::None,
+        }
+    }
 }
 
 fn build_obstacles(
@@ -586,21 +607,29 @@ fn build_obstacles(
             let Some(collision) = &tile.collision else {
                 continue;
             };
+            log::info!("Tile data {:?}", &tile.user_type);
 
             let object_data = collision.object_data();
 
             for data in object_data.iter() {
+                let mut obstacle = Obstacle::new();
                 if let tiled::ObjectShape::Rect { width, height } = data.shape {
-                    let obstacle = Obstacle {
-                        // TODO: add on the object.x to this value, as the shapes have an x within
-                        // the tiles space
-                        x: mapped_x as f32,
-                        // TODO: add on the object.y to this value, as the shapes have a y within
-                        // the tiles space
-                        y: mapped_y as f32,
-                        width,
-                        height,
+                    let obstacle_type = match &tile.user_type {
+                        Some(obstacle_type) => match obstacle_type.as_str() {
+                            "Chest" => ObstacleType::Chest,
+                            "Potion" => ObstacleType::Potion,
+                            _ => ObstacleType::None,
+                        },
+                        None => ObstacleType::None,
                     };
+                    obstacle.item = obstacle_type;
+                    // TODO: add on the object.x to this value, as the shapes have an x within
+                    obstacle.x = mapped_x as f32;
+                    // TODO: add on the object.y to this value, as the shapes have a y within
+                    obstacle.y = mapped_y as f32;
+                    obstacle.width = width;
+                    obstacle.height = height;
+
                     obstacles.push(obstacle);
                 }
             }
@@ -612,6 +641,17 @@ fn build_obstacles(
     }
 
     Some(obstacles)
+}
+
+fn tile_user_class_to_component(tile: &tiled::Tile) -> ObstacleType {
+    match &tile.user_type {
+        Some(obstacle_type) => match obstacle_type.as_str() {
+            "Chest" => ObstacleType::Chest,
+            "Potion" => ObstacleType::Potion,
+            _ => ObstacleType::None,
+        },
+        None => ObstacleType::None,
+    }
 }
 
 #[derive(Component, Debug)]
@@ -644,4 +684,26 @@ pub struct Unknown;
 pub struct Size {
     pub width: f32,
     pub height: f32,
+}
+
+#[derive(Component, Debug)]
+pub enum ObstacleType {
+    None,
+    Chest,
+    Potion,
+}
+
+#[derive(Component, Debug)]
+pub struct Inventory {
+    pub potion: ObstacleType,
+    pub weapon: ObstacleType,
+}
+
+impl Inventory {
+    pub fn new() -> Self {
+        Self {
+            potion: ObstacleType::None,
+            weapon: ObstacleType::None,
+        }
+    }
 }

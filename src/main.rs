@@ -3,6 +3,7 @@ use bevy::{prelude::*, window::WindowResolution};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_simple_tilemap::prelude::*;
 use movement::MovementPlugin;
+use tiled::ObstacleType;
 
 mod movement;
 mod tiled;
@@ -29,6 +30,7 @@ fn main() {
         .add_plugins(MovementPlugin)
         .add_systems(Startup, setup)
         .add_plugins(WorldInspectorPlugin::new())
+        // Debugging
         .run();
 }
 
