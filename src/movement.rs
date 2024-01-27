@@ -4,7 +4,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-use crate::tiled::{ObstacleType, Player, Portal, TilemapTileSize};
+use crate::tiled::{ObstacleType, Player, TilemapTileSize};
 
 const PLAYER_SPEED: f32 = 100.0;
 
@@ -43,7 +43,7 @@ impl Plugin for MovementPlugin {
                 input_system_touch,
                 update_player_position,
                 check_obstacle,
-                check_portal,
+                // check_portal,
             )
                 .chain(),
         );
@@ -205,6 +205,7 @@ fn check_obstacle(
     }
 }
 
+/*
 fn check_portal(
     mut player_query: Query<
         (&mut Transform, &TilemapTileSize, &Moveable),
@@ -247,3 +248,4 @@ fn check_portal(
         }
     }
 }
+*/

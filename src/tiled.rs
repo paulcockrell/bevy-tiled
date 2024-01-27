@@ -24,8 +24,6 @@ use bevy_simple_tilemap::{prelude::*, TileFlags};
 use thiserror::Error;
 use tiled::TileLayer;
 
-use crate::movement::Moveable;
-
 const SCALE: f32 = 3.0;
 
 pub struct TilemapSize {
@@ -67,7 +65,15 @@ impl Plugin for TiledMapPlugin {
         app.init_asset::<TiledMap>()
             .register_asset_loader(TiledLoader)
             .register_type::<TiledMapBundle>()
-            .add_systems(Update, process_loaded_maps);
+            .add_systems(
+                Update,
+                (
+                    process_map_layers,
+                    process_map_collideables,
+                    process_map_object_sprites,
+                    process_map_object_shapes,
+                ),
+            );
     }
 }
 
@@ -176,7 +182,7 @@ impl AssetLoader for TiledLoader {
     }
 }
 
-pub fn process_loaded_maps(
+pub fn process_map_layers(
     mut commands: Commands,
     mut map_query: Query<&Handle<TiledMap>>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
@@ -213,198 +219,310 @@ pub fn process_loaded_maps(
 
                     // Once materials have been created/added we need to then create the layers.
                     for (layer_index, layer) in tiled_map.map.layers().enumerate() {
-                        match layer.layer_type() {
-                            tiled::LayerType::Tiles(tile_layer) => {
-                                let Some(tiles) = build_tiles(
-                                    &tile_layer,
-                                    &tilemap_size,
-                                    tileset_index,
-                                    layer_index,
-                                ) else {
-                                    log::info!(
-                                        "No tiles for layer {} [{}]",
-                                        layer.name.clone(),
-                                        layer_index,
-                                    );
-                                    continue;
-                                };
+                        let tiled::LayerType::Tiles(tile_layer) = layer.layer_type() else {
+                            continue;
+                        };
 
-                                let mut tilemap = TileMap::default();
-                                tilemap.set_tiles(tiles);
+                        let Some(tiles) =
+                            build_tiles(&tile_layer, &tilemap_size, tileset_index, layer_index)
+                        else {
+                            log::info!(
+                                "No tiles for layer {} [{}]",
+                                layer.name.clone(),
+                                layer_index,
+                            );
+                            continue;
+                        };
 
-                                // Spawn collideables, this could do with putting somewhere nice, or
-                                // merging into the build_tiles...
-                                if let Some(collideables) = build_collideables(
-                                    &tilemap_size,
-                                    &tile_size,
-                                    &tile_layer,
-                                    layer_index,
-                                ) {
-                                    for (collision_point, tile_point) in collideables {
-                                        commands
-                                            // The sprite bundle just renders a transparent colored
-                                            // rectangle showing where this non sprite object exists
-                                            // e.g a collision shape
-                                            .spawn(SpriteBundle {
-                                                sprite: Sprite {
-                                                    color: Color::rgba(0.25, 0.25, 0.75, 0.5),
-                                                    custom_size: Some(Vec2::new(
-                                                        tile_size.scaled(SCALE).width,
-                                                        tile_size.scaled(SCALE).height,
-                                                    )),
-                                                    ..Default::default()
-                                                },
-                                                transform: Transform {
-                                                    translation: Vec3 {
-                                                        x: collision_point.x,
-                                                        y: collision_point.y,
-                                                        z: 30.0,
-                                                    },
-                                                    ..Default::default()
-                                                },
-                                                // Set to visible if you want to see the collision
-                                                // areas for debugging
-                                                visibility: Visibility::Visible,
-                                                ..Default::default()
-                                            })
-                                            .insert(tile_size.scaled(SCALE))
-                                            .insert(tile_point)
-                                            .insert(TiledCollideable);
-                                    }
-                                }
+                        let mut tilemap = TileMap::default();
+                        tilemap.set_tiles(tiles);
 
-                                let texture_atlas = TextureAtlas::from_grid(
-                                    tilemap_texture.clone(),
-                                    vec2(tile_size.width, tile_size.height),
-                                    tilemap_size.columns,
-                                    tilemap_size.rows,
-                                    Some(vec2(tile_spacing.x, tile_spacing.y)),
-                                    None,
-                                );
+                        let texture_atlas = TextureAtlas::from_grid(
+                            tilemap_texture.clone(),
+                            vec2(tile_size.width, tile_size.height),
+                            tilemap_size.columns,
+                            tilemap_size.rows,
+                            Some(vec2(tile_spacing.x, tile_spacing.y)),
+                            None,
+                        );
 
-                                let texture_atlas_handle = texture_atlases.add(texture_atlas);
-                                let map_origin =
-                                    Point::get_map_origin(&tilemap_size, &tile_size, SCALE);
+                        let texture_atlas_handle = texture_atlases.add(texture_atlas);
+                        let map_origin = Point::get_map_origin(&tilemap_size, &tile_size, SCALE);
+                        let scale = Vec3::splat(SCALE);
+                        let translation = Vec3::new(map_origin.x, map_origin.y, 0.0);
 
-                                let tilemap_bundle = TileMapBundle {
-                                    tilemap,
-                                    texture_atlas: texture_atlas_handle,
-                                    transform: Transform {
-                                        scale: Vec3::splat(SCALE),
-                                        translation: Vec3::new(map_origin.x, map_origin.y, 0.0),
+                        let tilemap_bundle = TileMapBundle {
+                            tilemap,
+                            texture_atlas: texture_atlas_handle,
+                            transform: Transform {
+                                scale,
+                                translation,
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        };
+
+                        commands
+                            .spawn(tilemap_bundle)
+                            .insert(Name::new(layer.name.clone()))
+                            .insert(tile_size.scaled(SCALE));
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn process_map_collideables(
+    mut commands: Commands,
+    mut map_query: Query<&Handle<TiledMap>>,
+    maps: Res<Assets<TiledMap>>,
+    new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
+) {
+    // If we have new map entities add them to the changed_maps list.
+    for _new_map in new_maps.iter() {
+        for map_handle in map_query.iter_mut() {
+            if let Some(tiled_map) = maps.get(map_handle) {
+                for tileset in tiled_map.map.tilesets().iter() {
+                    let tile_size = TilemapTileSize {
+                        width: tileset.tile_width as f32,
+                        height: tileset.tile_height as f32,
+                    };
+
+                    let tilemap_size = TilemapSize {
+                        columns: tileset.columns as usize,
+                        rows: (tileset.tilecount / tileset.columns) as usize,
+                        width: tiled_map.map.width as usize,
+                        height: tiled_map.map.height as usize,
+                    };
+
+                    for (layer_index, layer) in tiled_map.map.layers().enumerate() {
+                        let tiled::LayerType::Tiles(tile_layer) = layer.layer_type() else {
+                            continue;
+                        };
+
+                        let Some(collideables) =
+                            build_collideables(&tilemap_size, &tile_size, &tile_layer, layer_index)
+                        else {
+                            continue;
+                        };
+
+                        for (collision_point, tile_point) in collideables {
+                            let color = Color::rgba(0.25, 0.25, 0.75, 0.5);
+                            let custom_size = Some(Vec2::new(
+                                tile_size.scaled(SCALE).width,
+                                tile_size.scaled(SCALE).height,
+                            ));
+                            let translation = Vec3 {
+                                x: collision_point.x,
+                                y: collision_point.y,
+                                z: 30.0,
+                            };
+
+                            commands
+                                // The sprite bundle just renders a transparent colored
+                                // rectangle showing where this non sprite object exists
+                                // e.g a collision shape
+                                .spawn(SpriteBundle {
+                                    sprite: Sprite {
+                                        color,
+                                        custom_size,
                                         ..Default::default()
                                     },
+                                    transform: Transform {
+                                        translation,
+                                        ..Default::default()
+                                    },
+                                    // Set to visible if you want to see the collision
+                                    // areas for debugging
+                                    visibility: Visibility::Visible,
                                     ..Default::default()
-                                };
+                                })
+                                .insert(tile_size.scaled(SCALE))
+                                .insert(tile_point)
+                                .insert(TiledCollideable);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
-                                commands
-                                    .spawn(tilemap_bundle)
-                                    .insert(Name::new(layer.name.clone()))
-                                    .insert(tile_size.scaled(SCALE));
-                            }
-                            tiled::LayerType::Objects(object_layer) => {
-                                let texture_atlas = TextureAtlas::from_grid(
-                                    tilemap_texture.clone(),
-                                    vec2(tile_size.width, tile_size.height),
-                                    tilemap_size.columns,
-                                    tilemap_size.rows,
-                                    Some(vec2(tile_spacing.x, tile_spacing.y)),
-                                    None,
-                                );
+pub fn process_map_object_sprites(
+    mut commands: Commands,
+    mut map_query: Query<&Handle<TiledMap>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    maps: Res<Assets<TiledMap>>,
+    new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
+) {
+    // If we have new map entities add them to the changed_maps list.
+    for _new_map in new_maps.iter() {
+        for map_handle in map_query.iter_mut() {
+            if let Some(tiled_map) = maps.get(map_handle) {
+                for (tileset_index, tileset) in tiled_map.map.tilesets().iter().enumerate() {
+                    let Some(tilemap_texture) = tiled_map.tilemap_textures.get(&tileset_index)
+                    else {
+                        log::warn!("Skipped creating layer with missing tilemap textures.");
+                        continue;
+                    };
 
-                                let texture_atlas_handle = texture_atlases.add(texture_atlas);
+                    let tile_size = TilemapTileSize {
+                        width: tileset.tile_width as f32,
+                        height: tileset.tile_height as f32,
+                    };
 
-                                for object in object_layer.objects() {
-                                    // A sptite based tile that needs rendering
-                                    if let Some(layer_tile_data) = object.tile_data() {
-                                        let sprite_index = layer_tile_data.id();
+                    let tile_spacing = TilemapSpacing {
+                        x: tileset.spacing as f32,
+                        y: tileset.spacing as f32,
+                    };
 
-                                        let object_point = Point::from_tiled_object(
-                                            &tilemap_size,
-                                            &tile_size,
-                                            SCALE,
-                                            object.x,
-                                            object.y,
-                                        );
+                    let tilemap_size = TilemapSize {
+                        columns: tileset.columns as usize,
+                        rows: (tileset.tilecount / tileset.columns) as usize,
+                        width: tiled_map.map.width as usize,
+                        height: tiled_map.map.height as usize,
+                    };
 
-                                        let sprite = TextureAtlasSprite::new(sprite_index as usize);
-
-                                        let sprite_bundle = SpriteSheetBundle {
-                                            texture_atlas: texture_atlas_handle.clone(),
-                                            transform: Transform {
-                                                scale: Vec3::splat(SCALE),
-                                                translation: Vec3::new(
-                                                    object_point.x,
-                                                    object_point.y,
-                                                    layer_index as f32,
-                                                ),
-                                                ..Default::default()
-                                            },
-                                            sprite,
-                                            ..Default::default()
-                                        };
-
-                                        let layer_name = layer.name.clone();
-                                        commands
-                                            .spawn(sprite_bundle)
-                                            .insert(Name::new(layer_name))
-                                            .insert(tile_size.scaled(SCALE));
-                                    } else {
-                                        // A none sprite object with a shape
-                                        // We only care about recangle objects
-                                        if object.user_type == "PortalTunnel" {
-                                            let tiled::ObjectShape::Rect { width, height } =
-                                                object.shape
-                                            else {
-                                                log::info!("Found non rectangle, skipping");
-                                                continue;
-                                            };
-
-                                            let object_point = Point::from_tiled_object_shape(
-                                                &tilemap_size,
-                                                &tile_size,
-                                                SCALE,
-                                                object.x,
-                                                object.y,
-                                                width,
-                                                height,
-                                            );
-
-                                            let translation = Vec3::new(
-                                                object_point.x,
-                                                object_point.y,
-                                                layer_index as f32,
-                                            );
-
-                                            let object_size =
-                                                TilemapTileSize { width, height }.scaled(SCALE);
-
-                                            commands
-                                                .spawn(SpriteBundle {
-                                                    sprite: Sprite {
-                                                        color: Color::rgba(1., 1., 1., 0.5),
-                                                        custom_size: Some(Vec2::new(width, height)),
-                                                        ..Default::default()
-                                                    },
-                                                    transform: Transform {
-                                                        scale: Vec3::splat(SCALE),
-                                                        translation,
-                                                        ..Default::default()
-                                                    },
-                                                    // Set to visible if you want to see the portal
-                                                    // areas for debugging
-                                                    visibility: Visibility::Visible,
-                                                    ..Default::default()
-                                                })
-                                                .insert(TiledObject)
-                                                .insert(object_size)
-                                                .insert(Name::new(object.user_type.clone()));
-                                        }
-                                    }
-                                }
-                            }
-                            _ => (),
+                    // Once materials have been created/added we need to then create the layers.
+                    for (layer_index, layer) in tiled_map.map.layers().enumerate() {
+                        let tiled::LayerType::Objects(object_layer) = layer.layer_type() else {
+                            continue;
                         };
+
+                        let texture_atlas = TextureAtlas::from_grid(
+                            tilemap_texture.clone(),
+                            vec2(tile_size.width, tile_size.height),
+                            tilemap_size.columns,
+                            tilemap_size.rows,
+                            Some(vec2(tile_spacing.x, tile_spacing.y)),
+                            None,
+                        );
+
+                        let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+                        for object in object_layer.objects() {
+                            // A sptite based tile that needs rendering
+                            let Some(layer_tile_data) = object.tile_data() else {
+                                continue;
+                            };
+
+                            let sprite_index = layer_tile_data.id();
+
+                            let object_point = Point::from_tiled_object(
+                                &tilemap_size,
+                                &tile_size,
+                                SCALE,
+                                object.x,
+                                object.y,
+                            );
+
+                            let sprite = TextureAtlasSprite::new(sprite_index as usize);
+
+                            let sprite_bundle = SpriteSheetBundle {
+                                texture_atlas: texture_atlas_handle.clone(),
+                                transform: Transform {
+                                    scale: Vec3::splat(SCALE),
+                                    translation: Vec3::new(
+                                        object_point.x,
+                                        object_point.y,
+                                        layer_index as f32,
+                                    ),
+                                    ..Default::default()
+                                },
+                                sprite,
+                                ..Default::default()
+                            };
+
+                            let layer_name = layer.name.clone();
+                            commands
+                                .spawn(sprite_bundle)
+                                .insert(Name::new(layer_name))
+                                .insert(tile_size.scaled(SCALE));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn process_map_object_shapes(
+    mut commands: Commands,
+    mut map_query: Query<&Handle<TiledMap>>,
+    maps: Res<Assets<TiledMap>>,
+    new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
+) {
+    // If we have new map entities add them to the changed_maps list.
+    for _new_map in new_maps.iter() {
+        for map_handle in map_query.iter_mut() {
+            if let Some(tiled_map) = maps.get(map_handle) {
+                for tileset in tiled_map.map.tilesets().iter() {
+                    let tile_size = TilemapTileSize {
+                        width: tileset.tile_width as f32,
+                        height: tileset.tile_height as f32,
+                    };
+
+                    let tilemap_size = TilemapSize {
+                        columns: tileset.columns as usize,
+                        rows: (tileset.tilecount / tileset.columns) as usize,
+                        width: tiled_map.map.width as usize,
+                        height: tiled_map.map.height as usize,
+                    };
+
+                    // Once materials have been created/added we need to then create the layers.
+                    for (layer_index, layer) in tiled_map.map.layers().enumerate() {
+                        let tiled::LayerType::Objects(object_layer) = layer.layer_type() else {
+                            continue;
+                        };
+
+                        for object in object_layer.objects() {
+                            // A sptite based tile that needs rendering
+                            if object.tile_data().is_some() {
+                                continue;
+                            };
+                            // TODO: Support more shapes than just Rectangle
+                            let tiled::ObjectShape::Rect { width, height } = object.shape else {
+                                log::info!("Found non rectangle, skipping");
+                                continue;
+                            };
+
+                            let object_point = Point::from_tiled_object_shape(
+                                &tilemap_size,
+                                &tile_size,
+                                SCALE,
+                                object.x,
+                                object.y,
+                                width,
+                                height,
+                            );
+
+                            let translation =
+                                Vec3::new(object_point.x, object_point.y, layer_index as f32);
+
+                            let object_size = TilemapTileSize { width, height }.scaled(SCALE);
+
+                            commands
+                                .spawn(SpriteBundle {
+                                    sprite: Sprite {
+                                        color: Color::rgba(1., 1., 1., 0.5),
+                                        custom_size: Some(Vec2::new(width, height)),
+                                        ..Default::default()
+                                    },
+                                    transform: Transform {
+                                        scale: Vec3::splat(SCALE),
+                                        translation,
+                                        ..Default::default()
+                                    },
+                                    // Set to visible if you want to see the portal
+                                    // areas for debugging
+                                    visibility: Visibility::Visible,
+                                    ..Default::default()
+                                })
+                                .insert(TiledObject)
+                                .insert(object_size)
+                                .insert(Name::new(object.user_type.clone()));
+                        }
                     }
                 }
             }
@@ -576,17 +694,6 @@ pub struct Enemy;
 #[derive(Component, Debug)]
 pub struct Buildings;
 
-#[derive(Component, Debug)]
-pub struct Portal {
-    pub entered: bool,
-}
-
-impl Portal {
-    fn new() -> Self {
-        Self { entered: false }
-    }
-}
-
 #[derive(Reflect, Component, Copy, Clone, Default, Debug, InspectorOptions)]
 pub struct Point {
     pub x: f32,
@@ -688,21 +795,6 @@ pub enum ObstacleType {
     Tombstone,
     Grave,
     Fountain,
-}
-
-#[derive(Component, Debug)]
-pub struct Inventory {
-    pub potion: ObstacleType,
-    pub weapon: ObstacleType,
-}
-
-impl Inventory {
-    pub fn new() -> Self {
-        Self {
-            potion: ObstacleType::None,
-            weapon: ObstacleType::None,
-        }
-    }
 }
 
 #[derive(Component, Debug)]
