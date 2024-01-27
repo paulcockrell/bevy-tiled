@@ -240,21 +240,24 @@ pub fn process_loaded_maps(
                                     &tile_layer,
                                     layer_index,
                                 ) {
-                                    for (obstacle, obstacle_type) in obstacles {
+                                    for (point, size, obstacle_type) in obstacles {
                                         commands
+                                            // The sprite bundle just renders a transparent colored
+                                            // rectangle showing where this non sprite object exists
+                                            // e.g a collision shape
                                             .spawn(SpriteBundle {
                                                 sprite: Sprite {
                                                     color: Color::rgba(0.25, 0.25, 0.75, 0.5),
                                                     custom_size: Some(Vec2::new(
-                                                        obstacle.width,
-                                                        obstacle.height,
+                                                        size.width,
+                                                        size.height,
                                                     )),
                                                     ..Default::default()
                                                 },
                                                 transform: Transform {
                                                     translation: Vec3 {
-                                                        x: obstacle.x,
-                                                        y: obstacle.y,
+                                                        x: point.x,
+                                                        y: point.y,
                                                         z: 30.0,
                                                     },
                                                     ..Default::default()
@@ -264,7 +267,7 @@ pub fn process_loaded_maps(
                                                 visibility: Visibility::Hidden,
                                                 ..Default::default()
                                             })
-                                            .insert(obstacle)
+                                            .insert(size)
                                             .insert(obstacle_type);
                                     }
                                 }
@@ -529,33 +532,12 @@ fn build_tiles(
     Some(tiles)
 }
 
-// The x, y should be a Point component
-// the width, height should be a Size component
-#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
-pub struct Obstacle {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-impl Obstacle {
-    pub fn new() -> Self {
-        Self {
-            x: 0.,
-            y: 0.,
-            width: 0.,
-            height: 0.,
-        }
-    }
-}
-
 fn build_obstacles(
     tilemap_size: &TilemapSize,
     tile_size: &TilemapTileSize,
     tile_layer: &TileLayer,
     layer_index: usize,
-) -> Option<Vec<(Obstacle, ObstacleType)>> {
+) -> Option<Vec<(Point, Size, ObstacleType)>> {
     log::info!("Building obstacles for layer {}", layer_index);
 
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
@@ -566,14 +548,13 @@ fn build_obstacles(
         return None;
     };
 
-    let mut obstacles: Vec<(Obstacle, ObstacleType)> = vec![];
+    let mut obstacles: Vec<(Point, Size, ObstacleType)> = vec![];
 
     for x in 0..tilemap_size.width {
         for y in 0..tilemap_size.height {
             // Transform TMX coords into bevy coords.
-            let mapped_y = tilemap_size.height - 1 - y;
-
             let mapped_x = x as i32;
+            let mapped_y = tilemap_size.height - 1 - y;
             let mapped_y = mapped_y as i32;
 
             let layer_tile = match layer_data.get_tile(mapped_x, mapped_y) {
@@ -599,29 +580,22 @@ fn build_obstacles(
 
             for data in object_data.iter() {
                 if let tiled::ObjectShape::Rect { width, height } = data.shape {
-                    let obstacle_type = tile_user_class_to_component(&tile);
+                    let point = Point::from_collision_object(
+                        tilemap_size,
+                        tile_size,
+                        SCALE,
+                        mapped_x,
+                        mapped_y,
+                    );
 
-                    // TODO: Extract into some Point struct implementation?
-                    // Convert x, y to screen coords
-                    let width = width * SCALE;
-                    let height = height * SCALE;
-                    let x = (mapped_x as f32 * tile_size.scaled(SCALE).width)
-                        - ((tilemap_size.width as f32 * tile_size.scaled(SCALE).width) / 2.0)
-                        + (tile_size.scaled(SCALE).width / 2.0);
-                    let y = -((mapped_y as f32 * tile_size.scaled(SCALE).height)
-                        - ((tilemap_size.height as f32 * tile_size.scaled(SCALE).height) / 2.0))
-                        - (tile_size.scaled(SCALE).height / 2.0);
-
-                    let obstacle = Obstacle {
-                        // TODO: add on the object.x to this value, as the collision shapes have an x within
-                        x,
-                        // TODO: add on the object.y to this value, as the collision shapes have a y within
-                        y,
-                        width,
-                        height,
+                    let size = Size {
+                        width: width * SCALE,
+                        height: height * SCALE,
                     };
 
-                    obstacles.push((obstacle, obstacle_type));
+                    let obstacle_type = tile_user_class_to_component(&tile);
+
+                    obstacles.push((point, size, obstacle_type));
                 }
             }
         }
@@ -673,13 +647,36 @@ impl Portal {
     }
 }
 
-#[derive(Component, Debug)]
-pub struct Unknown;
-
-#[derive(Component, Debug)]
+#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
 pub struct Size {
     pub width: f32,
     pub height: f32,
+}
+
+#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
+pub struct Point {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Point {
+    pub fn from_collision_object(
+        tilemap_size: &TilemapSize,
+        tile_size: &TilemapTileSize,
+        scale: f32,
+        x: i32,
+        y: i32,
+    ) -> Self {
+        let x = (x as f32 * tile_size.scaled(scale).width)
+            - ((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0)
+            + (tile_size.scaled(scale).width / 2.0);
+
+        let y = -((y as f32 * tile_size.scaled(scale).height)
+            - ((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0))
+            - (tile_size.scaled(scale).height / 2.0);
+
+        Self { x, y }
+    }
 }
 
 #[derive(Reflect, Component, Default, Debug, InspectorOptions)]

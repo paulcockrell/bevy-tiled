@@ -4,7 +4,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-use crate::tiled::{Obstacle, ObstacleType, Player, Portal, Size};
+use crate::tiled::{ObstacleType, Player, Portal, Size};
 
 const PLAYER_SPEED: f32 = 100.0;
 
@@ -141,7 +141,7 @@ fn input_system_touch(
 
 fn check_obstacle(
     mut player_query: Query<(&mut Transform, &mut Moveable, &Size), With<Player>>,
-    obstacle_query: Query<(&Transform, &Obstacle, &ObstacleType), Without<Player>>,
+    obstacle_query: Query<(&Transform, &Size, &ObstacleType), Without<Player>>,
 ) {
     let Ok((mut player_transform, mut player_moveable, player_size)) =
         player_query.get_single_mut()
@@ -149,12 +149,12 @@ fn check_obstacle(
         return;
     };
 
-    for (obstacle_transform, obstacle, obstacle_type) in obstacle_query.iter() {
+    for (obstacle_transform, obstacle_size, obstacle_type) in obstacle_query.iter() {
         if let Some(collision) = collide(
             player_transform.translation,
             Vec2::new(player_size.width, player_size.height),
             obstacle_transform.translation,
-            Vec2::new(obstacle.width, obstacle.height),
+            Vec2::new(obstacle_size.width, obstacle_size.height),
         ) {
             log::info!("Bumped into {:?}", obstacle_type);
             // Moving left, collided with right side of wall
@@ -163,7 +163,8 @@ fn check_obstacle(
             {
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.x = obstacle_transform.translation.x + obstacle.width;
+                player_transform.translation.x =
+                    obstacle_transform.translation.x + obstacle_size.width;
                 player_moveable.speed = 0.0;
             };
 
@@ -173,7 +174,8 @@ fn check_obstacle(
             {
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.x = obstacle_transform.translation.x - obstacle.width;
+                player_transform.translation.x =
+                    obstacle_transform.translation.x - obstacle_size.width;
                 player_moveable.speed = 0.0;
             };
 
@@ -183,7 +185,8 @@ fn check_obstacle(
             {
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.y = obstacle_transform.translation.y - obstacle.height;
+                player_transform.translation.y =
+                    obstacle_transform.translation.y - obstacle_size.height;
                 player_moveable.speed = 0.0;
             };
 
@@ -193,7 +196,8 @@ fn check_obstacle(
             {
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
-                player_transform.translation.y = obstacle_transform.translation.y + obstacle.height;
+                player_transform.translation.y =
+                    obstacle_transform.translation.y + obstacle_size.height;
                 player_moveable.speed = 0.0;
             };
         }
