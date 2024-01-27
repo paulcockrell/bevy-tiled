@@ -234,35 +234,27 @@ pub fn process_loaded_maps(
 
                                 // Spawn obstacles, this could do with putting somewhere nice, or
                                 // merging into the build_tiles...
-                                if let Some(obstacles) =
-                                    build_obstacles(&tilemap_size, &tile_layer, layer_index)
-                                {
+                                if let Some(obstacles) = build_obstacles(
+                                    &tilemap_size,
+                                    &tile_size,
+                                    &tile_layer,
+                                    layer_index,
+                                ) {
                                     for (obstacle, obstacle_type) in obstacles {
-                                        let w = obstacle.width * SCALE;
-                                        let h = obstacle.height * SCALE;
-                                        let sprite_x = (obstacle.x * tile_size.scaled(SCALE).width)
-                                            - ((tilemap_size.width as f32
-                                                * tile_size.scaled(SCALE).width)
-                                                / 2.0)
-                                            + (tile_size.scaled(SCALE).width / 2.0);
-                                        let sprite_y = -((obstacle.y
-                                            * tile_size.scaled(SCALE).height)
-                                            - ((tilemap_size.height as f32
-                                                * tile_size.scaled(SCALE).height)
-                                                / 2.0))
-                                            - (tile_size.scaled(SCALE).height / 2.0);
-
                                         commands
                                             .spawn(SpriteBundle {
                                                 sprite: Sprite {
                                                     color: Color::rgba(0.25, 0.25, 0.75, 0.5),
-                                                    custom_size: Some(Vec2::new(w, h)),
+                                                    custom_size: Some(Vec2::new(
+                                                        obstacle.width,
+                                                        obstacle.height,
+                                                    )),
                                                     ..Default::default()
                                                 },
                                                 transform: Transform {
                                                     translation: Vec3 {
-                                                        x: sprite_x,
-                                                        y: sprite_y,
+                                                        x: obstacle.x,
+                                                        y: obstacle.y,
                                                         z: 30.0,
                                                     },
                                                     ..Default::default()
@@ -272,12 +264,7 @@ pub fn process_loaded_maps(
                                                 visibility: Visibility::Hidden,
                                                 ..Default::default()
                                             })
-                                            .insert(Obstacle {
-                                                x: sprite_x,
-                                                y: sprite_y,
-                                                width: w,
-                                                height: h,
-                                            })
+                                            .insert(obstacle)
                                             .insert(obstacle_type);
                                     }
                                 }
@@ -565,6 +552,7 @@ impl Obstacle {
 
 fn build_obstacles(
     tilemap_size: &TilemapSize,
+    tile_size: &TilemapTileSize,
     tile_layer: &TileLayer,
     layer_index: usize,
 ) -> Option<Vec<(Obstacle, ObstacleType)>> {
@@ -604,6 +592,7 @@ fn build_obstacles(
             let Some(collision) = &tile.collision else {
                 continue;
             };
+
             log::info!("Tile data {:?}", &tile.user_type);
 
             let object_data = collision.object_data();
@@ -611,11 +600,23 @@ fn build_obstacles(
             for data in object_data.iter() {
                 if let tiled::ObjectShape::Rect { width, height } = data.shape {
                     let obstacle_type = tile_user_class_to_component(&tile);
+
+                    // TODO: Extract into some Point struct implementation?
+                    // Convert x, y to screen coords
+                    let width = width * SCALE;
+                    let height = height * SCALE;
+                    let x = (mapped_x as f32 * tile_size.scaled(SCALE).width)
+                        - ((tilemap_size.width as f32 * tile_size.scaled(SCALE).width) / 2.0)
+                        + (tile_size.scaled(SCALE).width / 2.0);
+                    let y = -((mapped_y as f32 * tile_size.scaled(SCALE).height)
+                        - ((tilemap_size.height as f32 * tile_size.scaled(SCALE).height) / 2.0))
+                        - (tile_size.scaled(SCALE).height / 2.0);
+
                     let obstacle = Obstacle {
                         // TODO: add on the object.x to this value, as the collision shapes have an x within
-                        x: mapped_x as f32,
+                        x,
                         // TODO: add on the object.y to this value, as the collision shapes have a y within
-                        y: mapped_y as f32,
+                        y,
                         width,
                         height,
                     };
