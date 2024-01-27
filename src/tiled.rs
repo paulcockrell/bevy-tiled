@@ -345,46 +345,12 @@ pub fn process_loaded_maps(
                                         };
 
                                         let layer_name = layer.name.clone();
-                                        match layer_name.as_str() {
-                                            "player" => {
-                                                commands
-                                                    .spawn(sprite_bundle)
-                                                    .insert(Name::new(layer_name))
-                                                    .insert(Moveable::new())
-                                                    .insert(Player)
-                                                    .insert(Inventory::new())
-                                                    .insert(tile_size.scaled(SCALE));
-                                            }
-                                            "princess" => {
-                                                commands
-                                                    .spawn(sprite_bundle)
-                                                    .insert(Name::new(layer_name))
-                                                    .insert(Moveable::new())
-                                                    .insert(Princess)
-                                                    .insert(tile_size.scaled(SCALE));
-                                            }
-                                            "enemy" => {
-                                                commands
-                                                    .spawn(sprite_bundle)
-                                                    .insert(Name::new(layer_name))
-                                                    .insert(Moveable::new())
-                                                    .insert(Enemy)
-                                                    .insert(tile_size.scaled(SCALE));
-                                            }
-                                            _ => {
-                                                log::info!("Unknown layer name {}", layer_name);
-                                                commands
-                                                    .spawn(sprite_bundle)
-                                                    .insert(Name::new(layer_name))
-                                                    .insert(tile_size.scaled(SCALE));
-                                            }
-                                        };
+                                        commands
+                                            .spawn(sprite_bundle)
+                                            .insert(Name::new(layer_name))
+                                            .insert(tile_size.scaled(SCALE));
                                     } else {
                                         // A none sprite object with a shape
-                                        // data: ObjectData { id: 31, tile: None, name: "Portal
-                                        // Tunnel", user_type: "PortalTunnel", x: 464.0, y: 144.0,
-                                        // rotation: 0.0, visible: true, shape: Rect { width: 16.0,
-                                        // height: 64.0 }, properties: {} } }
                                         // We only care about recangle objects
                                         if object.user_type == "PortalTunnel" {
                                             let tiled::ObjectShape::Rect { width, height } =
