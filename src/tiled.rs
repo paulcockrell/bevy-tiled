@@ -325,8 +325,6 @@ pub fn process_loaded_maps(
                                             SCALE,
                                             object.x,
                                             object.y,
-                                            None,
-                                            None,
                                         );
 
                                         let sprite = TextureAtlasSprite::new(sprite_index as usize);
@@ -396,14 +394,14 @@ pub fn process_loaded_maps(
                                                 continue;
                                             };
 
-                                            let object_point = Point::from_tiled_object(
+                                            let object_point = Point::from_tiled_object_shape(
                                                 &tilemap_size,
                                                 &tile_size,
                                                 SCALE,
                                                 object.x,
                                                 object.y,
-                                                Some(width),
-                                                Some(height),
+                                                width,
+                                                height,
                                             );
 
                                             let translation = Vec3::new(
@@ -681,22 +679,33 @@ impl Point {
         scale: f32,
         x: f32,
         y: f32,
-        width: Option<f32>,
-        height: Option<f32>,
     ) -> Self {
-        let mut x =
-            (x * scale) - ((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0);
-        if let Some(w) = width {
-            // this is because shape objects have the x in the center, where as regular objects are left, so we need to adjust for that
-            x += w * 1.5;
-        }
+        let x = (x * scale) - ((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0);
 
-        let mut y =
+        let y =
             -((y * scale) - ((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0));
-        if let Some(h) = height {
+
+        Self { x, y }
+    }
+
+    /// Transform TMX object shape coords into bevy coords.
+    pub fn from_tiled_object_shape(
+        tilemap_size: &TilemapSize,
+        tile_size: &TilemapTileSize,
+        scale: f32,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    ) -> Self {
+        let x = (x * scale) - ((tilemap_size.width as f32 * tile_size.scaled(scale).width) / 2.0)
+            // this is because shape objects have the x in the center, where as regular objects are left, so we need to adjust for that
+            + (width * 1.5);
+
+        let y = -((y * scale)
+            - ((tilemap_size.height as f32 * tile_size.scaled(scale).height) / 2.0))
             // this is because shape objects have the y in the center, where as regular objects are top, so we need to adjust for that
-            y -= h * 1.5;
-        }
+            - (height * 1.5);
 
         Self { x, y }
     }
