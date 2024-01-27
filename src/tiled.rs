@@ -26,6 +26,8 @@ use tiled::TileLayer;
 
 use crate::movement::Moveable;
 
+const SCALE: f32 = 3.0;
+
 pub struct TilemapSize {
     pub columns: usize,
     pub rows: usize,
@@ -181,9 +183,6 @@ pub fn process_loaded_maps(
     maps: Res<Assets<TiledMap>>,
     new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
 ) {
-    // TODO: Move this to constant
-    let scale = 3.0;
-
     // If we have new map entities add them to the changed_maps list.
     for _new_map in new_maps.iter() {
         for map_handle in map_query.iter_mut() {
@@ -239,19 +238,19 @@ pub fn process_loaded_maps(
                                     build_obstacles(&tilemap_size, &tile_layer, layer_index)
                                 {
                                     for (obstacle, obstacle_type) in obstacles {
-                                        let w = obstacle.width * scale;
-                                        let h = obstacle.height * scale;
-                                        let sprite_x = (obstacle.x * tile_size.scaled(scale).width)
+                                        let w = obstacle.width * SCALE;
+                                        let h = obstacle.height * SCALE;
+                                        let sprite_x = (obstacle.x * tile_size.scaled(SCALE).width)
                                             - ((tilemap_size.width as f32
-                                                * tile_size.scaled(scale).width)
+                                                * tile_size.scaled(SCALE).width)
                                                 / 2.0)
-                                            + (tile_size.scaled(scale).width / 2.0);
+                                            + (tile_size.scaled(SCALE).width / 2.0);
                                         let sprite_y = -((obstacle.y
-                                            * tile_size.scaled(scale).height)
+                                            * tile_size.scaled(SCALE).height)
                                             - ((tilemap_size.height as f32
-                                                * tile_size.scaled(scale).height)
+                                                * tile_size.scaled(SCALE).height)
                                                 / 2.0))
-                                            - (tile_size.scaled(scale).height / 2.0);
+                                            - (tile_size.scaled(SCALE).height / 2.0);
 
                                         commands
                                             .spawn(SpriteBundle {
@@ -294,13 +293,13 @@ pub fn process_loaded_maps(
 
                                 let texture_atlas_handle = texture_atlases.add(texture_atlas);
                                 let translation = Vec3::new(
-                                    -((tilemap_size.width as f32 * tile_size.scaled(scale).width)
+                                    -((tilemap_size.width as f32 * tile_size.scaled(SCALE).width)
                                         / 2.0)
-                                        + ((tile_size.scaled(scale).width) / 2.0),
+                                        + ((tile_size.scaled(SCALE).width) / 2.0),
                                     -((tilemap_size.height as f32
-                                        * tile_size.scaled(scale).height)
+                                        * tile_size.scaled(SCALE).height)
                                         / 2.0)
-                                        + ((tile_size.scaled(scale).height) / 2.0),
+                                        + ((tile_size.scaled(SCALE).height) / 2.0),
                                     0.0,
                                 );
 
@@ -308,7 +307,7 @@ pub fn process_loaded_maps(
                                     tilemap,
                                     texture_atlas: texture_atlas_handle,
                                     transform: Transform {
-                                        scale: Vec3::splat(3.0),
+                                        scale: Vec3::splat(SCALE),
                                         translation,
                                         ..Default::default()
                                     },
@@ -322,7 +321,7 @@ pub fn process_loaded_maps(
                                         commands
                                             .spawn(tilemap_bundle)
                                             .insert(Name::new(layer_name))
-                                            .insert(tile_size.scaled(scale))
+                                            .insert(tile_size.scaled(SCALE))
                                             .insert(Buildings);
                                     }
                                     _ => {
@@ -348,13 +347,13 @@ pub fn process_loaded_maps(
                                     // A sptite based tile that needs rendering
                                     if let Some(layer_tile_data) = object.tile_data() {
                                         let sprite_index = layer_tile_data.id();
-                                        let sprite_x = (object.x * scale)
+                                        let sprite_x = (object.x * SCALE)
                                             - ((tilemap_size.width as f32
-                                                * tile_size.scaled(scale).width)
+                                                * tile_size.scaled(SCALE).width)
                                                 / 2.0);
-                                        let sprite_y = -((object.y * scale)
+                                        let sprite_y = -((object.y * SCALE)
                                             - ((tilemap_size.height as f32
-                                                * tile_size.scaled(scale).height)
+                                                * tile_size.scaled(SCALE).height)
                                                 / 2.0));
                                         let translation =
                                             Vec3::new(sprite_x, sprite_y, layer_index as f32);
@@ -364,7 +363,7 @@ pub fn process_loaded_maps(
                                         let sprite_bundle = SpriteSheetBundle {
                                             texture_atlas: texture_atlas_handle.clone(),
                                             transform: Transform {
-                                                scale: Vec3::splat(scale),
+                                                scale: Vec3::splat(SCALE),
                                                 translation,
                                                 ..Default::default()
                                             },
@@ -382,8 +381,8 @@ pub fn process_loaded_maps(
                                                     .insert(Player)
                                                     .insert(Inventory::new())
                                                     .insert(Size {
-                                                        width: tile_size.scaled(scale).width,
-                                                        height: tile_size.scaled(scale).height,
+                                                        width: tile_size.scaled(SCALE).width,
+                                                        height: tile_size.scaled(SCALE).height,
                                                     });
                                             }
                                             "princess" => {
@@ -422,16 +421,16 @@ pub fn process_loaded_maps(
                                                 continue;
                                             };
 
-                                            let object_x = (object.x * scale)
+                                            let object_x = (object.x * SCALE)
                                                 - ((tilemap_size.width as f32
-                                                    * tile_size.scaled(scale).width)
+                                                    * tile_size.scaled(SCALE).width)
                                                     / 2.0)
                                                 + (width * 1.5); // this is because the x is in the
                                                                  // center of the rectangle, so we need to adjust for
                                                                  // that
-                                            let object_y = -((object.y * scale)
+                                            let object_y = -((object.y * SCALE)
                                                 - ((tilemap_size.height as f32
-                                                    * tile_size.scaled(scale).height)
+                                                    * tile_size.scaled(SCALE).height)
                                                     / 2.0))
                                                 - (height * 1.5); // this is because the y is in
                                                                   // the center of the rectangle, so we need to adjust
@@ -447,7 +446,7 @@ pub fn process_loaded_maps(
                                                         ..Default::default()
                                                     },
                                                     transform: Transform {
-                                                        scale: Vec3::splat(scale),
+                                                        scale: Vec3::splat(SCALE),
                                                         translation,
                                                         ..Default::default()
                                                     },
@@ -458,8 +457,8 @@ pub fn process_loaded_maps(
                                                 })
                                                 .insert(Portal::new())
                                                 .insert(Size {
-                                                    width: width * scale,
-                                                    height: height * scale,
+                                                    width: width * SCALE,
+                                                    height: height * SCALE,
                                                 })
                                                 .insert(Name::new(object.user_type.clone()));
                                         }
