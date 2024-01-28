@@ -438,6 +438,9 @@ pub fn process_map_object_sprites(
                             commands
                                 .spawn(sprite_bundle)
                                 .insert(Name::new(layer_name))
+                                .insert(TiledObject {
+                                    name: object.name.clone(),
+                                })
                                 .insert(tile_size.scaled(SCALE));
                         }
                     }
@@ -481,6 +484,7 @@ pub fn process_map_object_shapes(
                             if object.tile_data().is_some() {
                                 continue;
                             };
+
                             // TODO: Support more shapes than just Rectangle
                             let tiled::ObjectShape::Rect { width, height } = object.shape else {
                                 log::info!("Found non rectangle, skipping");
@@ -519,7 +523,7 @@ pub fn process_map_object_shapes(
                                     visibility: Visibility::Visible,
                                     ..Default::default()
                                 })
-                                .insert(TiledObject)
+                                .insert(TiledCollideable)
                                 .insert(object_size)
                                 .insert(Name::new(object.user_type.clone()));
                         }
@@ -666,34 +670,6 @@ fn build_collideables(
     Some(collideables)
 }
 
-fn tile_user_class_to_component(tile: &tiled::Tile) -> ObstacleType {
-    match &tile.user_type {
-        Some(obstacle_type) => match obstacle_type.as_str() {
-            "Chest" => ObstacleType::Chest,
-            "Potion" => ObstacleType::Potion,
-            "Door" => ObstacleType::Door,
-            "Tombstone" => ObstacleType::Tombstone,
-            "Grave" => ObstacleType::Grave,
-            "Fountain" => ObstacleType::Fountain,
-            "Wall" => ObstacleType::Wall,
-            _ => ObstacleType::None,
-        },
-        None => ObstacleType::None,
-    }
-}
-
-#[derive(Component, Debug)]
-pub struct Player;
-
-#[derive(Component, Debug)]
-pub struct Princess;
-
-#[derive(Component, Debug)]
-pub struct Enemy;
-
-#[derive(Component, Debug)]
-pub struct Buildings;
-
 #[derive(Reflect, Component, Copy, Clone, Default, Debug, InspectorOptions)]
 pub struct Point {
     pub x: f32,
@@ -784,24 +760,10 @@ impl Point {
     }
 }
 
-#[derive(Reflect, Component, Default, Debug, InspectorOptions)]
-pub enum ObstacleType {
-    #[default]
-    None,
-    Chest,
-    Potion,
-    Wall,
-    Door,
-    Tombstone,
-    Grave,
-    Fountain,
-}
-
 #[derive(Component, Debug)]
 pub struct TiledCollideable;
 
 #[derive(Component, Debug)]
-pub struct TiledObject;
-
-// TODO:
-// need only the concept of tiled_tile, tiled_object and tiled_collision
+pub struct TiledObject {
+    pub name: String,
+}

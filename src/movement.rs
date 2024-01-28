@@ -4,7 +4,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
 };
 
-use crate::tiled::{ObstacleType, Player, TilemapTileSize};
+use crate::{tiled_map::TilemapTileSize, Obstacle, Player};
 
 const PLAYER_SPEED: f32 = 100.0;
 
@@ -141,7 +141,7 @@ fn input_system_touch(
 
 fn check_obstacle(
     mut player_query: Query<(&mut Transform, &mut Moveable, &TilemapTileSize), With<Player>>,
-    obstacle_query: Query<(&Transform, &TilemapTileSize, &ObstacleType), Without<Player>>,
+    obstacle_query: Query<(&Transform, &TilemapTileSize, &Obstacle), Without<Player>>,
 ) {
     let Ok((mut player_transform, mut player_moveable, player_size)) =
         player_query.get_single_mut()

@@ -487,7 +487,7 @@
   <object id="33" name="Portal Tunnel" type="PortalTunnel" x="166" y="31" width="4" height="50"/>
  </objectgroup>
  <objectgroup id="11" name="player">
-  <object id="22" gid="98" x="333.625" y="223.5" width="16" height="16"/>
+  <object id="22" name="Player" gid="98" x="333.625" y="223.5" width="16" height="16"/>
  </objectgroup>
  <objectgroup id="9" name="princess">
   <object id="15" gid="100" x="162.667" y="15.6667" width="16" height="16"/>
