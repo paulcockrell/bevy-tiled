@@ -1,12 +1,14 @@
 use bevy::{
-    log,
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
 };
 
-use crate::{tiled_map::TilemapTileSize, Obstacle, Player};
+use crate::{
+    tiled_map::{TiledCollideable, TilemapTileSize},
+    Player, Portal,
+};
 
-const PLAYER_SPEED: f32 = 100.0;
+const PLAYER_SPEED: f32 = 125.0;
 
 #[derive(Debug)]
 enum Direction {
@@ -42,8 +44,8 @@ impl Plugin for MovementPlugin {
                 input_system_keyboard,
                 input_system_touch,
                 update_player_position,
-                check_obstacle,
-                // check_portal,
+                check_collideable,
+                check_portal,
             )
                 .chain(),
         );
@@ -139,9 +141,16 @@ fn input_system_touch(
     }
 }
 
-fn check_obstacle(
-    mut player_query: Query<(&mut Transform, &mut Moveable, &TilemapTileSize), With<Player>>,
-    obstacle_query: Query<(&Transform, &TilemapTileSize, &Obstacle), Without<Player>>,
+#[allow(clippy::type_complexity)]
+fn check_collideable(
+    mut player_query: Query<
+        (&mut Transform, &mut Moveable, &TilemapTileSize),
+        (With<Player>, Without<TiledCollideable>),
+    >,
+    collideable_query: Query<
+        (&Transform, &TilemapTileSize),
+        (With<TiledCollideable>, Without<Player>),
+    >,
 ) {
     let Ok((mut player_transform, mut player_moveable, player_size)) =
         player_query.get_single_mut()
@@ -149,15 +158,15 @@ fn check_obstacle(
         return;
     };
 
-    for (obstacle_transform, obstacle_size, obstacle_type) in obstacle_query.iter() {
+    for (collideable_transform, collideable_size) in collideable_query.iter() {
+        // TODO: The collideable size should be the width and height of the collideable shape, not
+        // just the tile with and height
         if let Some(collision) = collide(
             player_transform.translation,
             Vec2::new(player_size.width, player_size.height),
-            obstacle_transform.translation,
-            Vec2::new(obstacle_size.width, obstacle_size.height),
+            collideable_transform.translation,
+            Vec2::new(collideable_size.width, collideable_size.height),
         ) {
-            log::info!("Bumped into {:?}", obstacle_type);
-
             // Moving left, collided with right side of wall
             if matches!(player_moveable.direction, Direction::Left)
                 && matches!(collision, Collision::Right)
@@ -165,7 +174,7 @@ fn check_obstacle(
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.x =
-                    obstacle_transform.translation.x + obstacle_size.width;
+                    collideable_transform.translation.x + collideable_size.width;
                 player_moveable.speed = 0.0;
             };
 
@@ -176,7 +185,7 @@ fn check_obstacle(
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.x =
-                    obstacle_transform.translation.x - obstacle_size.width;
+                    collideable_transform.translation.x - collideable_size.width;
                 player_moveable.speed = 0.0;
             };
 
@@ -187,7 +196,7 @@ fn check_obstacle(
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.y =
-                    obstacle_transform.translation.y - obstacle_size.height;
+                    collideable_transform.translation.y - collideable_size.height;
                 player_moveable.speed = 0.0;
             };
 
@@ -198,17 +207,17 @@ fn check_obstacle(
                 // Ensure we don't move in to the wall, as the collision may occur
                 // after we have moved 'into' it (as translation is a vec3 of f32s)
                 player_transform.translation.y =
-                    obstacle_transform.translation.y + obstacle_size.height;
+                    collideable_transform.translation.y + collideable_size.height;
                 player_moveable.speed = 0.0;
             };
         }
     }
 }
 
-/*
+#[allow(clippy::type_complexity)]
 fn check_portal(
     mut player_query: Query<
-        (&mut Transform, &TilemapTileSize, &Moveable),
+        (&mut Transform, &TilemapTileSize, &mut Moveable),
         (With<Player>, Without<Portal>),
     >,
     mut portal_query: Query<
@@ -216,12 +225,13 @@ fn check_portal(
         (With<Portal>, Without<Player>),
     >,
 ) {
-    let Ok((mut player_transform, player_size, player_moveable)) = player_query.get_single_mut()
+    let Ok((mut player_transform, player_size, mut player_moveable)) =
+        player_query.get_single_mut()
     else {
         return;
     };
 
-    for (portal_transform, portal_size, mut portal) in portal_query.iter_mut() {
+    for (portal_transform, portal_size, _portal) in portal_query.iter_mut() {
         if let Some(collision) = collide(
             player_transform.translation,
             Vec2::new(player_size.width, player_size.height),
@@ -231,16 +241,18 @@ fn check_portal(
             match collision {
                 Collision::Top => {
                     if matches!(player_moveable.direction, Direction::Down) {
-                        portal.entered = true;
                         player_transform.translation.y = portal_transform.translation.y
                             - (portal_size.height - (player_size.height * 1.5));
+                        // Make the player 'pop' out the other side
+                        player_moveable.speed = PLAYER_SPEED;
                     }
                 }
                 Collision::Bottom => {
                     if matches!(player_moveable.direction, Direction::Up) {
-                        portal.entered = true;
                         player_transform.translation.y = portal_transform.translation.y
                             + (portal_size.height - (player_size.height * 1.5));
+                        // Make the player 'pop' out the other side
+                        player_moveable.speed = PLAYER_SPEED;
                     }
                 }
                 _ => (),
@@ -248,4 +260,3 @@ fn check_portal(
         }
     }
 }
-*/

@@ -54,9 +54,6 @@ pub struct TilemapSpacing {
     pub y: f32,
 }
 
-#[derive(Component, Debug)]
-pub struct TileCollider;
-
 #[derive(Default)]
 pub struct TiledMapPlugin;
 
@@ -307,15 +304,15 @@ pub fn process_map_collideables(
                             continue;
                         };
 
-                        for (collision_point, tile_point) in collideables {
+                        for collideable in collideables {
                             let color = Color::rgba(0.25, 0.25, 0.75, 0.5);
                             let custom_size = Some(Vec2::new(
                                 tile_size.scaled(SCALE).width,
                                 tile_size.scaled(SCALE).height,
                             ));
                             let translation = Vec3 {
-                                x: collision_point.x,
-                                y: collision_point.y,
+                                x: collideable.collision_point.x,
+                                y: collideable.collision_point.y,
                                 z: 30.0,
                             };
 
@@ -339,8 +336,7 @@ pub fn process_map_collideables(
                                     ..Default::default()
                                 })
                                 .insert(tile_size.scaled(SCALE))
-                                .insert(tile_point)
-                                .insert(TiledCollideable);
+                                .insert(collideable);
                         }
                     }
                 }
@@ -506,6 +502,11 @@ pub fn process_map_object_shapes(
 
                             let object_size = TilemapTileSize { width, height }.scaled(SCALE);
 
+                            let tiled_shape = TiledShape {
+                                collision_point: object_point,
+                                name: Some(object.user_type.clone()),
+                            };
+
                             commands
                                 .spawn(SpriteBundle {
                                     sprite: Sprite {
@@ -523,7 +524,7 @@ pub fn process_map_object_shapes(
                                     visibility: Visibility::Visible,
                                     ..Default::default()
                                 })
-                                .insert(TiledCollideable)
+                                .insert(tiled_shape)
                                 .insert(object_size)
                                 .insert(Name::new(object.user_type.clone()));
                         }
@@ -603,7 +604,7 @@ fn build_collideables(
     tile_size: &TilemapTileSize,
     tile_layer: &TileLayer,
     layer_index: usize,
-) -> Option<Vec<(Point, Point)>> {
+) -> Option<Vec<TiledCollideable>> {
     log::info!("Building collideables for layer {}", layer_index);
 
     let tiled::TileLayer::Finite(layer_data) = tile_layer else {
@@ -614,7 +615,7 @@ fn build_collideables(
         return None;
     };
 
-    let mut collideables: Vec<(Point, Point)> = vec![];
+    let mut collideables: Vec<TiledCollideable> = vec![];
 
     for x in 0..tilemap_size.width {
         for y in 0..tilemap_size.height {
@@ -637,8 +638,6 @@ fn build_collideables(
                 continue;
             };
 
-            log::info!("Tile data {:?}", &tile.user_type);
-
             let object_data = collision.object_data();
 
             for data in object_data.iter() {
@@ -657,7 +656,13 @@ fn build_collideables(
                         tile_point.y as i32,
                     );
 
-                    collideables.push((collision_point, tile_point));
+                    let collideable = TiledCollideable {
+                        collision_point,
+                        tile_point,
+                        name: tile.user_type.clone(),
+                    };
+
+                    collideables.push(collideable);
                 }
             }
         }
@@ -761,7 +766,17 @@ impl Point {
 }
 
 #[derive(Component, Debug)]
-pub struct TiledCollideable;
+pub struct TiledCollideable {
+    pub collision_point: Point,
+    pub tile_point: Point,
+    pub name: Option<String>,
+}
+
+#[derive(Component, Debug)]
+pub struct TiledShape {
+    pub collision_point: Point,
+    pub name: Option<String>,
+}
 
 #[derive(Component, Debug)]
 pub struct TiledObject {

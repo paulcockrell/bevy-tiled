@@ -3,7 +3,7 @@ use bevy_inspector_egui::{quick::WorldInspectorPlugin, InspectorOptions};
 use bevy_simple_tilemap::prelude::*;
 use movement::MovementPlugin;
 use tiled_map::{
-    TiledCollideable, TiledMap, TiledMapBundle, TiledMapPlugin, TiledObject, TilemapTileSize,
+    TiledMap, TiledMapBundle, TiledMapPlugin, TiledObject, TiledShape, TilemapTileSize,
 };
 
 use crate::movement::Moveable;
@@ -32,10 +32,10 @@ fn main() {
         .add_plugins(TiledMapPlugin)
         .add_plugins(MovementPlugin)
         .add_systems(Startup, setup)
-        .add_systems(PostUpdate, (setup_objects, setup_collideables))
+        .add_systems(PostUpdate, (setup_player, setup_portals))
         .add_plugins(WorldInspectorPlugin::new())
         // Debugging
-        .register_type::<Chest>()
+        .register_type::<Player>()
         .register_type::<TilemapTileSize>()
         .run();
 }
@@ -53,7 +53,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
-fn setup_objects(
+fn setup_player(
     mut commands: Commands,
     new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
     tiled_object_query: Query<(Entity, &TiledObject)>,
@@ -64,48 +64,44 @@ fn setup_objects(
     }
 
     for (entity, tiled_object) in tiled_object_query.iter() {
-        log::info!("XXX Tiled Object Name {}", tiled_object.name);
         match tiled_object.name.as_str() {
             "Player" => commands
                 .entity(entity)
                 .insert(Player)
                 .insert(Moveable::new()),
-            // "Chest" => commands.entity(entity).insert(Chest).insert(Obstacle),
             _ => &mut commands.entity(entity),
         };
     }
 
-    log::info!("Setup map objects complete.");
+    log::info!("Setup player complete.");
 }
 
-fn setup_collideables(
+fn setup_portals(
     mut commands: Commands,
     new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
-    tiled_collideable_query: Query<Entity, With<TiledCollideable>>,
+    tiled_shape_query: Query<(Entity, &TiledShape), With<TiledShape>>,
 ) {
     // Check to see if the maps were updated, if so continue to build objects else return
     if new_maps.is_empty() {
         return;
     }
 
-    for entity in tiled_collideable_query.iter() {
-        commands.entity(entity).insert(Obstacle);
+    for (entity, tiled_shape) in tiled_shape_query.iter() {
+        let Some(name) = &tiled_shape.name else {
+            continue;
+        };
+
+        match name.as_str() {
+            "PortalTunnel" => commands.entity(entity).insert(Portal),
+            _ => &mut commands.entity(entity),
+        };
     }
 
-    log::info!("Setup map collideables complete.");
+    log::info!("Setup portal complete.");
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Reflect, InspectorOptions)]
 pub struct Player;
 
-#[derive(Component, Debug)]
-pub struct Obstacle;
-
 #[derive(Component, Debug, Reflect, InspectorOptions)]
-pub struct Chest;
-
-#[derive(Component, Debug)]
-pub struct Princess;
-
-#[derive(Component, Debug)]
-pub struct Enemy;
+pub struct Portal;
