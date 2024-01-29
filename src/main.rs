@@ -100,6 +100,9 @@ fn setup_portals(
     log::info!("Setup portal complete.");
 }
 
+// TODO: Create a 'collectables' component and setup function, for things that can go in the
+// players inventory
+
 #[derive(Component, Debug, Reflect, InspectorOptions)]
 pub struct Player;
 
