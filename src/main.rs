@@ -2,7 +2,9 @@ use bevy::{log, prelude::*, window::WindowResolution};
 use bevy_inspector_egui::{quick::WorldInspectorPlugin, InspectorOptions};
 use bevy_simple_tilemap::prelude::*;
 use movement::MovementPlugin;
-use tiled_map::{TiledMap, TiledMapBundle, TiledMapPlugin, TiledObject, TilemapTileSize};
+use tiled_map::{
+    TiledCollideable, TiledMap, TiledMapBundle, TiledMapPlugin, TiledObject, TilemapTileSize,
+};
 
 use crate::movement::Moveable;
 
@@ -30,7 +32,7 @@ fn main() {
         .add_plugins(TiledMapPlugin)
         .add_plugins(MovementPlugin)
         .add_systems(Startup, setup)
-        .add_systems(PostUpdate, setup_objects)
+        .add_systems(PostUpdate, (setup_objects, setup_collideables))
         .add_plugins(WorldInspectorPlugin::new())
         // Debugging
         .register_type::<Chest>()
@@ -61,9 +63,6 @@ fn setup_objects(
         return;
     }
 
-    // for collideable_entity in collideable_entity_query.iter() {
-    //     commands.entity(collideable_entity).log_components();
-    // }
     for (entity, tiled_object) in tiled_object_query.iter() {
         log::info!("XXX Tiled Object Name {}", tiled_object.name);
         match tiled_object.name.as_str() {
@@ -71,13 +70,29 @@ fn setup_objects(
                 .entity(entity)
                 .insert(Player)
                 .insert(Moveable::new()),
-            "Wall" => commands.entity(entity).insert(Obstacle),
-            "Chest" => commands.entity(entity).insert(Chest).insert(Obstacle),
+            // "Chest" => commands.entity(entity).insert(Chest).insert(Obstacle),
             _ => &mut commands.entity(entity),
         };
     }
 
-    log::info!("Setup map objects");
+    log::info!("Setup map objects complete.");
+}
+
+fn setup_collideables(
+    mut commands: Commands,
+    new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
+    tiled_collideable_query: Query<Entity, With<TiledCollideable>>,
+) {
+    // Check to see if the maps were updated, if so continue to build objects else return
+    if new_maps.is_empty() {
+        return;
+    }
+
+    for entity in tiled_collideable_query.iter() {
+        commands.entity(entity).insert(Obstacle);
+    }
+
+    log::info!("Setup map collideables complete.");
 }
 
 #[derive(Component, Debug)]
