@@ -1,11 +1,12 @@
 use bevy::{
+    log,
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
 };
 
 use crate::{
     tiled_map::{TiledCollideable, TilemapTileSize},
-    Player, Portal,
+    Collectable, Inventory, Player, Portal,
 };
 
 const PLAYER_SPEED: f32 = 125.0;
@@ -45,6 +46,7 @@ impl Plugin for MovementPlugin {
                 input_system_touch,
                 update_player_position,
                 check_collideable,
+                check_collectable,
                 check_portal,
             )
                 .chain(),
@@ -210,6 +212,34 @@ fn check_collideable(
                     collideable_transform.translation.y + collideable_size.height;
                 player_moveable.speed = 0.0;
             };
+        }
+    }
+}
+
+#[allow(clippy::type_complexity)]
+fn check_collectable(
+    mut player_query: Query<
+        (&mut Transform, &TilemapTileSize, &mut Inventory),
+        (With<Player>, Without<Collectable>),
+    >,
+    collectable_query: Query<
+        (&Transform, &TilemapTileSize, &Collectable),
+        (With<Collectable>, Without<Player>),
+    >,
+) {
+    let Ok((player_transform, player_size, mut player_inventory)) = player_query.get_single_mut()
+    else {
+        return;
+    };
+
+    for (collectable_transform, collectable_size, collectable) in collectable_query.iter() {
+        if let Some(_collision) = collide(
+            player_transform.translation,
+            Vec2::new(player_size.width, player_size.height),
+            collectable_transform.translation,
+            Vec2::new(collectable_size.width, collectable_size.height),
+        ) {
+            player_inventory.add_item(*collectable);
         }
     }
 }
