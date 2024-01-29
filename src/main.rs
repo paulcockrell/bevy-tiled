@@ -158,6 +158,7 @@ impl Inventory {
         if self.0.contains(&new_item) {
             return false;
         }
+        log::info!("Added {:?} to inventory", new_item);
         self.0.push(new_item);
         true
     }
