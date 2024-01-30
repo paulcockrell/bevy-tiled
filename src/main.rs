@@ -39,8 +39,7 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         // Debugging
         .register_type::<Player>()
-        .register_type::<Collectable>()
-        .register_type::<CollectableItem>()
+        .register_type::<Inventory>()
         .register_type::<TilemapTileSize>()
         .run();
 }
@@ -121,9 +120,29 @@ fn setup_collectables(
 
     for (entity, tiled_object) in tiled_object_query.iter() {
         match tiled_object.name.as_str() {
-            "RedChest" => commands
+            "PotionRed" => commands
                 .entity(entity)
-                .insert(Collectable(CollectableItem::RedChest))
+                .insert(Collectable(Potion::Red))
+                .insert(Name::new(tiled_object.name.clone())),
+            "PotionGreen" => commands
+                .entity(entity)
+                .insert(Collectable(Potion::Green))
+                .insert(Name::new(tiled_object.name.clone())),
+            "PotionBlue" => commands
+                .entity(entity)
+                .insert(Collectable(Potion::Blue))
+                .insert(Name::new(tiled_object.name.clone())),
+            "WeaponHammer" => commands
+                .entity(entity)
+                .insert(Collectable(Weapon::Hammer))
+                .insert(Name::new(tiled_object.name.clone())),
+            "WeaponSword" => commands
+                .entity(entity)
+                .insert(Collectable(Weapon::Sword))
+                .insert(Name::new(tiled_object.name.clone())),
+            "WeaponAxe" => commands
+                .entity(entity)
+                .insert(Collectable(Weapon::Axe))
                 .insert(Name::new(tiled_object.name.clone())),
             _ => &mut commands.entity(entity),
         };
@@ -132,35 +151,41 @@ fn setup_collectables(
     log::info!("Setup collectables complete.");
 }
 
-#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
-pub enum CollectableItem {
-    RedChest,
-}
-
-#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
-pub struct Collectable(CollectableItem);
-
 #[derive(Component, Debug, Reflect, InspectorOptions)]
 pub struct Player;
 
 #[derive(Component, Debug, Reflect, InspectorOptions)]
 pub struct Portal;
 
-#[derive(Component, Debug, Reflect, InspectorOptions)]
-pub struct Inventory(Vec<Collectable>);
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Collectable<T>(T);
+
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Potion {
+    Red,
+    Green,
+    Blue,
+}
+
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
+pub enum Weapon {
+    Sword,
+    Hammer,
+    Axe,
+}
+
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
+pub struct Inventory {
+    pub potion: Option<Collectable<Potion>>,
+    pub weapon: Option<Collectable<Weapon>>,
+}
 
 impl Inventory {
     pub fn new() -> Self {
-        Self(vec![])
-    }
-
-    pub fn add_item(&mut self, new_item: Collectable) -> bool {
-        if self.0.contains(&new_item) {
-            return false;
+        Self {
+            potion: None,
+            weapon: None,
         }
-        log::info!("Added {:?} to inventory", new_item);
-        self.0.push(new_item);
-        true
     }
 }
 

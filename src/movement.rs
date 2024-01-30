@@ -6,7 +6,7 @@ use bevy::{
 
 use crate::{
     tiled_map::{TiledCollideable, TilemapTileSize},
-    Collectable, Inventory, Player, Portal,
+    Collectable, Inventory, Player, Portal, Potion, Weapon,
 };
 
 const PLAYER_SPEED: f32 = 125.0;
@@ -46,7 +46,8 @@ impl Plugin for MovementPlugin {
                 input_system_touch,
                 update_player_position,
                 check_collideable,
-                check_collectable,
+                check_collectable_potion,
+                check_collectable_weapon,
                 check_portal,
             )
                 .chain(),
@@ -217,14 +218,14 @@ fn check_collideable(
 }
 
 #[allow(clippy::type_complexity)]
-fn check_collectable(
+fn check_collectable_potion(
     mut player_query: Query<
         (&mut Transform, &TilemapTileSize, &mut Inventory),
-        (With<Player>, Without<Collectable>),
+        (With<Player>, Without<Collectable<Potion>>),
     >,
     collectable_query: Query<
-        (&Transform, &TilemapTileSize, &Collectable),
-        (With<Collectable>, Without<Player>),
+        (&Transform, &TilemapTileSize, &Collectable<Potion>),
+        (With<Collectable<Potion>>, Without<Player>),
     >,
 ) {
     let Ok((player_transform, player_size, mut player_inventory)) = player_query.get_single_mut()
@@ -239,7 +240,37 @@ fn check_collectable(
             collectable_transform.translation,
             Vec2::new(collectable_size.width, collectable_size.height),
         ) {
-            player_inventory.add_item(*collectable);
+            player_inventory.potion = Some(*collectable);
+            log::info!("XXX {:?}", player_inventory);
+        }
+    }
+}
+
+#[allow(clippy::type_complexity)]
+fn check_collectable_weapon(
+    mut player_query: Query<
+        (&mut Transform, &TilemapTileSize, &mut Inventory),
+        (With<Player>, Without<Collectable<Weapon>>),
+    >,
+    collectable_query: Query<
+        (&Transform, &TilemapTileSize, &Collectable<Weapon>),
+        (With<Collectable<Weapon>>, Without<Player>),
+    >,
+) {
+    let Ok((player_transform, player_size, mut player_inventory)) = player_query.get_single_mut()
+    else {
+        return;
+    };
+
+    for (collectable_transform, collectable_size, collectable) in collectable_query.iter() {
+        if let Some(_collision) = collide(
+            player_transform.translation,
+            Vec2::new(player_size.width, player_size.height),
+            collectable_transform.translation,
+            Vec2::new(collectable_size.width, collectable_size.height),
+        ) {
+            player_inventory.weapon = Some(*collectable);
+            log::info!("XXX {:?}", player_inventory);
         }
     }
 }
