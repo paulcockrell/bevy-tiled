@@ -68,14 +68,20 @@ fn setup_player(
     }
 
     for (entity, tiled_object) in tiled_object_query.iter() {
-        match tiled_object.name.as_str() {
-            "Player" => commands
-                .entity(entity)
-                .insert(Player)
-                .insert(Inventory::default())
-                .insert(Moveable::new()),
-            _ => &mut commands.entity(entity),
-        };
+        match &tiled_object.class {
+            Some(class) => {
+                if class == "Player" {
+                    commands
+                        .entity(entity)
+                        .insert(Player)
+                        .insert(Inventory::default())
+                        .insert(Moveable::new());
+                }
+            }
+            _ => {
+                commands.entity(entity);
+            }
+        }
     }
 
     log::info!("Setup player complete.");
@@ -92,16 +98,44 @@ fn setup_portals(
     }
 
     for (entity, tiled_shape) in tiled_shape_query.iter() {
-        let Some(name) = &tiled_shape.name else {
-            continue;
-        };
+        match &tiled_shape.class {
+            Some(class) => {
+                if class != "Portal" {
+                    return;
+                }
 
-        match name.as_str() {
-            "PortalTunnel" => commands
-                .entity(entity)
-                .insert(Portal)
-                .insert(Name::new(name.clone())),
-            _ => commands.entity(entity).insert(Name::new(name.clone())),
+                let mut c = commands.entity(entity);
+                c.insert(Portal).insert(Name::new(class.clone()));
+
+                if let Some(name) = &tiled_shape.name {
+                    for n in name.split(',') {
+                        match n {
+                            "Green potion" => {
+                                c.insert(Potion::Green);
+                            }
+                            "Red potion" => {
+                                c.insert(Potion::Red);
+                            }
+                            "Blue potion" => {
+                                c.insert(Potion::Blue);
+                            }
+                            "Hammer" => {
+                                c.insert(Weapon::Hammer);
+                            }
+                            "Axe" => {
+                                c.insert(Weapon::Axe);
+                            }
+                            "Sword" => {
+                                c.insert(Weapon::Sword);
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+            }
+            _ => {
+                commands.entity(entity);
+            }
         };
     }
 
@@ -119,32 +153,40 @@ fn setup_collectables(
     }
 
     for (entity, tiled_object) in tiled_object_query.iter() {
-        match tiled_object.name.as_str() {
-            "PotionRed" => commands
-                .entity(entity)
-                .insert(Collectable(Potion::Red))
-                .insert(Name::new(tiled_object.name.clone())),
-            "PotionGreen" => commands
-                .entity(entity)
-                .insert(Collectable(Potion::Green))
-                .insert(Name::new(tiled_object.name.clone())),
-            "PotionBlue" => commands
-                .entity(entity)
-                .insert(Collectable(Potion::Blue))
-                .insert(Name::new(tiled_object.name.clone())),
-            "WeaponHammer" => commands
-                .entity(entity)
-                .insert(Collectable(Weapon::Hammer))
-                .insert(Name::new(tiled_object.name.clone())),
-            "WeaponSword" => commands
-                .entity(entity)
-                .insert(Collectable(Weapon::Sword))
-                .insert(Name::new(tiled_object.name.clone())),
-            "WeaponAxe" => commands
-                .entity(entity)
-                .insert(Collectable(Weapon::Axe))
-                .insert(Name::new(tiled_object.name.clone())),
-            _ => &mut commands.entity(entity),
+        match &tiled_object.class {
+            Some(class) => {
+                if class == "Collectable" {
+                    let mut c = commands.entity(entity);
+                    c.insert(Name::new(class.clone()));
+
+                    if let Some(name) = &tiled_object.name {
+                        match name.as_str() {
+                            "Green potion" => {
+                                c.insert(Collectable(Potion::Green));
+                            }
+                            "Red potion" => {
+                                c.insert(Collectable(Potion::Red));
+                            }
+                            "Blue potion" => {
+                                c.insert(Collectable(Potion::Blue));
+                            }
+                            "Hammer" => {
+                                c.insert(Collectable(Weapon::Hammer));
+                            }
+                            "Axe" => {
+                                c.insert(Collectable(Weapon::Axe));
+                            }
+                            "Sword" => {
+                                c.insert(Collectable(Weapon::Sword));
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+            }
+            _ => {
+                commands.entity(entity);
+            }
         };
     }
 
