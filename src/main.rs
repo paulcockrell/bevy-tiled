@@ -1,6 +1,9 @@
+use std::fmt;
+
 use bevy::{log, prelude::*, window::WindowResolution};
 use bevy_inspector_egui::{quick::WorldInspectorPlugin, InspectorOptions};
 use bevy_simple_tilemap::prelude::*;
+use hud::HudPlugin;
 use movement::MovementPlugin;
 use tiled_map::{
     TiledMap, TiledMapBundle, TiledMapPlugin, TiledObject, TiledShape, TilemapTileSize,
@@ -8,6 +11,7 @@ use tiled_map::{
 
 use crate::movement::Moveable;
 
+mod hud;
 mod movement;
 mod tiled_map;
 
@@ -31,11 +35,16 @@ fn main() {
         .add_plugins(SimpleTileMapPlugin)
         .add_plugins(TiledMapPlugin)
         .add_plugins(MovementPlugin)
+        .add_plugins(HudPlugin)
         .add_systems(Startup, setup)
-        .add_systems(PostUpdate, (setup_player, setup_portals))
+        .add_systems(
+            PostUpdate,
+            (setup_player, setup_portals, setup_collectables),
+        )
         .add_plugins(WorldInspectorPlugin::new())
         // Debugging
         .register_type::<Player>()
+        .register_type::<Inventory>()
         .register_type::<TilemapTileSize>()
         .run();
 }
@@ -64,13 +73,20 @@ fn setup_player(
     }
 
     for (entity, tiled_object) in tiled_object_query.iter() {
-        match tiled_object.name.as_str() {
-            "Player" => commands
-                .entity(entity)
-                .insert(Player)
-                .insert(Moveable::new()),
-            _ => &mut commands.entity(entity),
-        };
+        match &tiled_object.class {
+            Some(class) => {
+                if class == "Player" {
+                    commands
+                        .entity(entity)
+                        .insert(Player)
+                        .insert(Inventory::default())
+                        .insert(Moveable::new());
+                }
+            }
+            _ => {
+                commands.entity(entity);
+            }
+        }
     }
 
     log::info!("Setup player complete.");
@@ -87,24 +103,180 @@ fn setup_portals(
     }
 
     for (entity, tiled_shape) in tiled_shape_query.iter() {
-        let Some(name) = &tiled_shape.name else {
-            continue;
-        };
+        match &tiled_shape.class {
+            Some(class) => {
+                if class != "Portal" {
+                    return;
+                }
 
-        match name.as_str() {
-            "PortalTunnel" => commands.entity(entity).insert(Portal),
-            _ => &mut commands.entity(entity),
+                let mut c = commands.entity(entity);
+                c.insert(Portal).insert(Name::new(class.clone()));
+
+                if let Some(name) = &tiled_shape.name {
+                    for n in name.split(',') {
+                        match n {
+                            "Green potion" => {
+                                c.insert(Potion::Green);
+                            }
+                            "Red potion" => {
+                                c.insert(Potion::Red);
+                            }
+                            "Blue potion" => {
+                                c.insert(Potion::Blue);
+                            }
+                            "Hammer" => {
+                                c.insert(Weapon::Hammer);
+                            }
+                            "Axe" => {
+                                c.insert(Weapon::Axe);
+                            }
+                            "Sword" => {
+                                c.insert(Weapon::Sword);
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+            }
+            _ => {
+                commands.entity(entity);
+            }
         };
     }
 
     log::info!("Setup portal complete.");
 }
 
-// TODO: Create a 'collectables' component and setup function, for things that can go in the
-// players inventory
+fn setup_collectables(
+    mut commands: Commands,
+    new_maps: Query<&Handle<TiledMap>, Added<Handle<TiledMap>>>,
+    tiled_object_query: Query<(Entity, &TiledObject)>,
+) {
+    // Check to see if the maps were updated, if so continue to build objects else return
+    if new_maps.is_empty() {
+        return;
+    }
+
+    for (entity, tiled_object) in tiled_object_query.iter() {
+        match &tiled_object.class {
+            Some(class) => {
+                if class == "Collectable" {
+                    let mut c = commands.entity(entity);
+                    c.insert(Name::new(class.clone()));
+
+                    if let Some(name) = &tiled_object.name {
+                        match name.as_str() {
+                            "Green potion" => {
+                                c.insert(Collectable(Potion::Green));
+                            }
+                            "Red potion" => {
+                                c.insert(Collectable(Potion::Red));
+                            }
+                            "Blue potion" => {
+                                c.insert(Collectable(Potion::Blue));
+                            }
+                            "Hammer" => {
+                                c.insert(Collectable(Weapon::Hammer));
+                            }
+                            "Axe" => {
+                                c.insert(Collectable(Weapon::Axe));
+                            }
+                            "Sword" => {
+                                c.insert(Collectable(Weapon::Sword));
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+            }
+            _ => {
+                commands.entity(entity);
+            }
+        };
+    }
+
+    log::info!("Setup collectables complete.");
+}
 
 #[derive(Component, Debug, Reflect, InspectorOptions)]
 pub struct Player;
 
 #[derive(Component, Debug, Reflect, InspectorOptions)]
 pub struct Portal;
+
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Collectable<T>(T);
+
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Potion {
+    Red,
+    Green,
+    Blue,
+}
+
+impl fmt::Display for Potion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Red => write!(f, "Red"),
+            Self::Green => write!(f, "Green"),
+            Self::Blue => write!(f, "Blue"),
+        }
+    }
+}
+
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
+pub enum Weapon {
+    Sword,
+    Hammer,
+    Axe,
+}
+
+impl fmt::Display for Weapon {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Sword => write!(f, "Sword"),
+            Self::Hammer => write!(f, "Hammer"),
+            Self::Axe => write!(f, "Axe"),
+        }
+    }
+}
+
+// TODO: Inventory is probably better suited as a resource, as there is only one?
+#[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
+pub struct Inventory {
+    pub potion: Option<Collectable<Potion>>,
+    pub weapon: Option<Collectable<Weapon>>,
+}
+
+impl Inventory {
+    pub fn new() -> Self {
+        Self {
+            potion: None,
+            weapon: None,
+        }
+    }
+}
+
+impl fmt::Display for Inventory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let potion = if let Some(collectable) = self.potion {
+            collectable.0.to_string()
+        } else {
+            "Empty".to_string()
+        };
+
+        let weapon = if let Some(collectable) = self.weapon {
+            collectable.0.to_string()
+        } else {
+            "Empty".to_string()
+        };
+
+        write!(f, "Inventory (Potion: {}, Weapon: {})", potion, weapon)
+    }
+}
+
+impl Default for Inventory {
+    fn default() -> Self {
+        Self::new()
+    }
+}

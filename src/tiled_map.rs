@@ -332,7 +332,7 @@ pub fn process_map_collideables(
                                     },
                                     // Set to visible if you want to see the collision
                                     // areas for debugging
-                                    visibility: Visibility::Visible,
+                                    visibility: Visibility::Hidden,
                                     ..Default::default()
                                 })
                                 .insert(tile_size.scaled(SCALE))
@@ -431,12 +431,23 @@ pub fn process_map_object_sprites(
                             };
 
                             let layer_name = layer.name.clone();
+
+                            let name = if object.name.is_empty() {
+                                None
+                            } else {
+                                Some(object.name.clone())
+                            };
+
+                            let class = if object.user_type.is_empty() {
+                                None
+                            } else {
+                                Some(object.user_type.clone())
+                            };
+
                             commands
                                 .spawn(sprite_bundle)
                                 .insert(Name::new(layer_name))
-                                .insert(TiledObject {
-                                    name: object.name.clone(),
-                                })
+                                .insert(TiledObject { name, class })
                                 .insert(tile_size.scaled(SCALE));
                         }
                     }
@@ -502,9 +513,22 @@ pub fn process_map_object_shapes(
 
                             let object_size = TilemapTileSize { width, height }.scaled(SCALE);
 
+                            let name = if object.name.is_empty() {
+                                None
+                            } else {
+                                Some(object.name.clone())
+                            };
+
+                            let class = if object.user_type.is_empty() {
+                                None
+                            } else {
+                                Some(object.user_type.clone())
+                            };
+
                             let tiled_shape = TiledShape {
                                 collision_point: object_point,
-                                name: Some(object.user_type.clone()),
+                                name,
+                                class,
                             };
 
                             commands
@@ -776,9 +800,11 @@ pub struct TiledCollideable {
 pub struct TiledShape {
     pub collision_point: Point,
     pub name: Option<String>,
+    pub class: Option<String>,
 }
 
 #[derive(Component, Debug)]
 pub struct TiledObject {
-    pub name: String,
+    pub name: Option<String>,
+    pub class: Option<String>,
 }
