@@ -472,7 +472,7 @@
  </layer>
  <objectgroup id="16" name="items">
   <object id="40" name="Red potion" type="Collectable" gid="116" x="408" y="56" width="16" height="16"/>
-  <object id="42" name="Green potion" type="Collectable" gid="115" x="216" y="25" width="16" height="16"/>
+  <object id="42" name="Green potion" type="Collectable" gid="115" x="296.333" y="137" width="16" height="16"/>
   <object id="44" name="Hammer" type="Collectable" gid="118" x="296" y="232" width="16" height="16"/>
   <object id="47" name="Sword" type="Collectable" gid="107" x="88" y="216" width="16" height="16"/>
   <object id="49" name="Blue potion" type="Collectable" gid="117" x="440" y="232" width="16" height="16"/>
