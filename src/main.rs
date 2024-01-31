@@ -113,29 +113,33 @@ fn setup_portals(
                 c.insert(Portal).insert(Name::new(class.clone()));
 
                 if let Some(name) = &tiled_shape.name {
+                    let mut inventory = Inventory::new();
+
                     for n in name.split(',') {
                         match n {
                             "Green potion" => {
-                                c.insert(Potion::Green);
+                                inventory.potion = Some(Collectable(Potion::Green));
                             }
                             "Red potion" => {
-                                c.insert(Potion::Red);
+                                inventory.potion = Some(Collectable(Potion::Red));
                             }
                             "Blue potion" => {
-                                c.insert(Potion::Blue);
+                                inventory.potion = Some(Collectable(Potion::Blue));
                             }
                             "Hammer" => {
-                                c.insert(Weapon::Hammer);
+                                inventory.weapon = Some(Collectable(Weapon::Hammer));
                             }
                             "Axe" => {
-                                c.insert(Weapon::Axe);
+                                inventory.weapon = Some(Collectable(Weapon::Axe));
                             }
                             "Sword" => {
-                                c.insert(Weapon::Sword);
+                                inventory.weapon = Some(Collectable(Weapon::Sword));
                             }
                             _ => (),
                         }
                     }
+
+                    c.insert(inventory);
                 }
             }
             _ => {

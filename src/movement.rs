@@ -279,27 +279,45 @@ fn check_collectable_weapon(
 #[allow(clippy::type_complexity)]
 fn check_portal(
     mut player_query: Query<
-        (&mut Transform, &TilemapTileSize, &mut Moveable),
+        (&mut Transform, &TilemapTileSize, &mut Moveable, &Inventory),
         (With<Player>, Without<Portal>),
     >,
     mut portal_query: Query<
-        (&Transform, &TilemapTileSize, &mut Portal),
+        (&Transform, &TilemapTileSize, &mut Portal, &Inventory),
         (With<Portal>, Without<Player>),
     >,
 ) {
-    let Ok((mut player_transform, player_size, mut player_moveable)) =
+    let Ok((mut player_transform, player_size, mut player_moveable, player_inventory)) =
         player_query.get_single_mut()
     else {
+        println!("Did not find player");
         return;
     };
 
-    for (portal_transform, portal_size, _portal) in portal_query.iter_mut() {
+    for (portal_transform, portal_size, _portal, portal_inventory) in portal_query.iter_mut() {
         if let Some(collision) = collide(
             player_transform.translation,
             Vec2::new(player_size.width, player_size.height),
             portal_transform.translation,
             Vec2::new(portal_size.width, portal_size.height),
         ) {
+            if let (Some(pl_weapon), Some(pl_potion), Some(po_weapon), Some(po_potion)) = (
+                player_inventory.weapon,
+                player_inventory.potion,
+                portal_inventory.weapon,
+                portal_inventory.potion,
+            ) {
+                if pl_weapon == po_weapon && pl_potion == po_potion {
+                    println!("You may pass, young warrior");
+                } else {
+                    println!("HALT!, you must collect the correct items to pass");
+                    return;
+                }
+            } else {
+                println!("HALT!, you must collect the correct items to pass");
+                return;
+            }
+
             match collision {
                 Collision::Top => {
                     if matches!(player_moveable.direction, Direction::Down) {
