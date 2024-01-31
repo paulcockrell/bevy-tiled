@@ -1,6 +1,9 @@
+use std::fmt;
+
 use bevy::{log, prelude::*, window::WindowResolution};
 use bevy_inspector_egui::{quick::WorldInspectorPlugin, InspectorOptions};
 use bevy_simple_tilemap::prelude::*;
+use hud::HudPlugin;
 use movement::MovementPlugin;
 use tiled_map::{
     TiledMap, TiledMapBundle, TiledMapPlugin, TiledObject, TiledShape, TilemapTileSize,
@@ -8,6 +11,7 @@ use tiled_map::{
 
 use crate::movement::Moveable;
 
+mod hud;
 mod movement;
 mod tiled_map;
 
@@ -31,6 +35,7 @@ fn main() {
         .add_plugins(SimpleTileMapPlugin)
         .add_plugins(TiledMapPlugin)
         .add_plugins(MovementPlugin)
+        .add_plugins(HudPlugin)
         .add_systems(Startup, setup)
         .add_systems(
             PostUpdate,
@@ -209,6 +214,16 @@ pub enum Potion {
     Blue,
 }
 
+impl fmt::Display for Potion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Red => write!(f, "Red"),
+            Self::Green => write!(f, "Green"),
+            Self::Blue => write!(f, "Blue"),
+        }
+    }
+}
+
 #[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
 pub enum Weapon {
     Sword,
@@ -216,6 +231,17 @@ pub enum Weapon {
     Axe,
 }
 
+impl fmt::Display for Weapon {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Sword => write!(f, "Sword"),
+            Self::Hammer => write!(f, "Hammer"),
+            Self::Axe => write!(f, "Axe"),
+        }
+    }
+}
+
+// TODO: Inventory is probably better suited as a resource, as there is only one?
 #[derive(Component, Debug, Reflect, InspectorOptions, Clone, Copy, PartialEq, Eq)]
 pub struct Inventory {
     pub potion: Option<Collectable<Potion>>,
@@ -228,6 +254,24 @@ impl Inventory {
             potion: None,
             weapon: None,
         }
+    }
+}
+
+impl fmt::Display for Inventory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let potion = if let Some(collectable) = self.potion {
+            collectable.0.to_string()
+        } else {
+            "Empty".to_string()
+        };
+
+        let weapon = if let Some(collectable) = self.weapon {
+            collectable.0.to_string()
+        } else {
+            "Empty".to_string()
+        };
+
+        write!(f, "Inventory (Potion: {}, Weapon: {})", potion, weapon)
     }
 }
 

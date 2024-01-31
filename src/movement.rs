@@ -1,5 +1,4 @@
 use bevy::{
-    log,
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
 };
@@ -240,8 +239,9 @@ fn check_collectable_potion(
             collectable_transform.translation,
             Vec2::new(collectable_size.width, collectable_size.height),
         ) {
-            player_inventory.potion = Some(*collectable);
-            log::info!("XXX {:?}", player_inventory);
+            if player_inventory.potion != Some(*collectable) {
+                player_inventory.potion = Some(*collectable);
+            }
         }
     }
 }
@@ -269,8 +269,9 @@ fn check_collectable_weapon(
             collectable_transform.translation,
             Vec2::new(collectable_size.width, collectable_size.height),
         ) {
-            player_inventory.weapon = Some(*collectable);
-            log::info!("XXX {:?}", player_inventory);
+            if player_inventory.weapon != Some(*collectable) {
+                player_inventory.weapon = Some(*collectable);
+            }
         }
     }
 }
