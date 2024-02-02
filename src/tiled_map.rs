@@ -545,7 +545,7 @@ pub fn process_map_object_shapes(
                                     },
                                     // Set to visible if you want to see the portal
                                     // areas for debugging
-                                    visibility: Visibility::Visible,
+                                    visibility: Visibility::Hidden,
                                     ..Default::default()
                                 })
                                 .insert(tiled_shape)
