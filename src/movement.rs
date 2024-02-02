@@ -324,7 +324,7 @@ fn check_portal(
                         player_transform.translation.y = portal_transform.translation.y
                             - (portal_size.height - (player_size.height * 1.5));
                         // Make the player 'pop' out the other side
-                        player_moveable.speed = PLAYER_SPEED;
+                        player_moveable.speed = PLAYER_SPEED / 2.;
                     }
                 }
                 Collision::Bottom => {
@@ -332,7 +332,7 @@ fn check_portal(
                         player_transform.translation.y = portal_transform.translation.y
                             + (portal_size.height - (player_size.height * 1.5));
                         // Make the player 'pop' out the other side
-                        player_moveable.speed = PLAYER_SPEED;
+                        player_moveable.speed = PLAYER_SPEED / 2.;
                     }
                 }
                 _ => (),

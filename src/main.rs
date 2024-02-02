@@ -52,7 +52,7 @@ fn main() {
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
 
-    let map_handle: Handle<TiledMap> = asset_server.load("map.tmx");
+    let map_handle: Handle<TiledMap> = asset_server.load("level1.tmx");
 
     // TODO: If the tiled_map is spawned here... will all the other objects and sprites be spawned
     // even if this command below isn't executed!?
